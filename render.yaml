@@ -1,0 +1,31 @@
+# Cấu hình triển khai server lên Render (https://render.com): New > Blueprint > chọn repo này.
+# Các biến có "sync: false" Render sẽ hỏi khi tạo dịch vụ (dán giá trị lấy từ Supabase).
+services:
+  - type: web
+    name: smartspend-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: STORAGE_DRIVER
+        value: supabase
+      - key: SUPABASE_BUCKET
+        value: attachments
+      - key: JWT_SECRET
+        generateValue: true
+      - key: TRUST_PROXY
+        value: "true"
+      - key: ENABLE_SCHEDULER
+        value: "true"

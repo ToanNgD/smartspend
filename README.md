@@ -174,3 +174,9 @@ App dùng **Provider** với ba lớp:
 - `ApiClient`: gọi API.
 
 Nếu thầy yêu cầu Riverpod, chỉ cần đổi phần cung cấp trạng thái trong `main.dart` và các lệnh `context.watch`/`context.read`. Phần logic không phải sửa.
+
+---
+
+## 6. Đưa server lên cloud (chạy 24/7)
+
+Xem hướng dẫn chi tiết trong [DEPLOY.md](DEPLOY.md): Supabase (CSDL + ảnh) + Render (server) + cron-job.org (giữ server thức).

@@ -18,9 +18,9 @@ class Db {
           password: c.dbPassword,
         ),
       ],
-      settings: const PoolSettings(
+      settings: PoolSettings(
         maxConnectionCount: 10,
-        sslMode: SslMode.disable,
+        sslMode: c.dbSsl ? SslMode.require : SslMode.disable,
       ),
     );
     return Db(pool);

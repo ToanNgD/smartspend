@@ -66,7 +66,12 @@ class SmartSpendApp extends StatelessWidget {
           GlobalCupertinoLocalizations.delegate,
         ],
         home: const HomeShell(),
-        builder: (context, child) => _Gate(child: child!),
+        // Chạm ra ngoài ô nhập để ẩn bàn phím (iOS không tự có nút đóng bàn phím số).
+        builder: (context, child) => GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+          child: _Gate(child: child!),
+        ),
       );
 }
 

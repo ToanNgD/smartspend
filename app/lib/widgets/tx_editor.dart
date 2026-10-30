@@ -1,4 +1,5 @@
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -10,6 +11,12 @@ import '../models/models.dart';
 import '../screens/camera_screen.dart';
 import '../state/app_data.dart';
 import 'common.dart';
+
+/// Bàn phím nhập số tiền. Bàn phím số thuần của iOS không có nút "Xong" để đóng,
+/// nên trên iOS dùng bàn phím số có phím Return (Xong).
+TextInputType get moneyKeyboard => defaultTargetPlatform == TargetPlatform.iOS
+    ? const TextInputType.numberWithOptions(signed: true)
+    : TextInputType.number;
 
 /// Định dạng số tiền khi gõ: 50000 -> 50.000
 class MoneyInputFormatter extends TextInputFormatter {
@@ -100,7 +107,8 @@ class _TxEditorState extends State<TxEditor> {
       const SizedBox(height: 14),
       TextField(
         controller: _amount,
-        keyboardType: TextInputType.number,
+        keyboardType: moneyKeyboard,
+        textInputAction: TextInputAction.done,
         inputFormatters: [MoneyInputFormatter()],
         style: Theme.of(context).textTheme.headlineSmall?.copyWith(
             color: d.type == 'income' ? context.incomeColor : context.expenseColor, fontWeight: FontWeight.w700),

@@ -121,7 +121,10 @@ class _AiPreviewScreenState extends State<AiPreviewScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: Text('Xem trước (${_drafts.length})')),
-        body: ListView(padding: const EdgeInsets.fromLTRB(16, 0, 16, 24), children: [
+        body: ListView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            children: [
           if (widget.engine == 'basic')
             Padding(
               padding: const EdgeInsets.only(bottom: 8),

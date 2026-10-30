@@ -43,9 +43,12 @@ Middleware accessLog() => (inner) => (req) async {
     };
 
 /// Gắn IP client vào context (dùng cho giới hạn đăng ký/đăng nhập).
-Middleware clientIp() => (inner) => (req) {
+/// Khi chạy sau proxy của nhà cung cấp cloud (TRUST_PROXY=true), IP thật nằm trong X-Forwarded-For.
+Middleware clientIp({bool trustProxy = false}) => (inner) => (req) {
       final info = req.context['shelf.io.connection_info'] as HttpConnectionInfo?;
-      final ip = info?.remoteAddress.address ?? 'unknown';
+      var ip = info?.remoteAddress.address ?? 'unknown';
+      final fwd = req.headers['x-forwarded-for'];
+      if (trustProxy && fwd != null && fwd.isNotEmpty) ip = fwd.split(',').first.trim();
       return inner(req.change(context: {'clientIp': ip}));
     };
 

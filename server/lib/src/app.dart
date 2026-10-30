@@ -34,7 +34,9 @@ AppContext buildContext(Config config) {
     push: push,
     alerts: AlertService(db, push),
     ai: AiService(config, db),
-    storage: StorageService(config.uploadDir),
+    storage: config.storageDriver == 'supabase'
+        ? SupabaseStorage(config.supabaseUrl, config.supabaseKey, config.supabaseBucket)
+        : LocalStorage(config.uploadDir),
   );
 }
 
@@ -52,7 +54,12 @@ Handler buildHandler(AppContext c) {
     'reports': ReportRoutes(c).router.call,
     'ai': AiRoutes(c).router.call,
   };
-  final api = Router()..get('/health', (Request _) => jsonOk({'status': 'ok'}));
+  // /health có truy vấn CSDL để dịch vụ ping định kỳ giữ cả server và CSDL luôn hoạt động.
+  final api = Router()
+    ..get('/health', (Request _) async {
+      await c.db.q('SELECT 1');
+      return jsonOk({'status': 'ok'});
+    });
   collections.forEach((name, h) {
     // "/wallets" và "/wallets/..." đều đi vào cùng router con.
     api.all('/$name', (Request r) => h(r.change(path: name)));
@@ -76,7 +83,7 @@ Handler buildHandler(AppContext c) {
       .addMiddleware(accessLog())
       .addMiddleware(securityHeaders())
       .addMiddleware(errorHandler())
-      .addMiddleware(clientIp())
+      .addMiddleware(clientIp(trustProxy: c.config.trustProxy))
       .addMiddleware(auth(c.jwt, publicPaths: publicPaths))
       .addMiddleware(globalRateLimit(c.config.requestsPerMinute))
       .addHandler(root.call);

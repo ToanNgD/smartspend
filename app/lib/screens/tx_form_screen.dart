@@ -70,7 +70,10 @@ class _TxFormScreenState extends State<TxFormScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: Text(widget.edit == null ? 'Thêm giao dịch' : 'Sửa giao dịch')),
-        body: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 24), children: [
+        body: ListView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            children: [
           TxEditor(draft: _d, images: widget.edit == null ? _images : null),
         ]),
         bottomNavigationBar: SafeArea(

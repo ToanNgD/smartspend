@@ -77,7 +77,8 @@ class _WalletTile extends StatelessWidget {
                 TextField(
                     controller: ctl,
                     autofocus: true,
-                    keyboardType: TextInputType.number,
+                    keyboardType: moneyKeyboard,
+                    textInputAction: TextInputAction.done,
                     inputFormatters: [MoneyInputFormatter()],
                     decoration: const InputDecoration(labelText: 'Số dư thực tế', suffixText: 'đ')),
               ]),
@@ -190,7 +191,8 @@ class _WalletFormState extends State<_WalletForm> {
             const SizedBox(height: 12),
             TextField(
               controller: _initial,
-              keyboardType: TextInputType.number,
+              keyboardType: moneyKeyboard,
+              textInputAction: TextInputAction.done,
               inputFormatters: [MoneyInputFormatter()],
               decoration: const InputDecoration(labelText: 'Số dư ban đầu', suffixText: 'đ', helperText: 'Ghi thành giao dịch "Số dư ban đầu"'),
             ),

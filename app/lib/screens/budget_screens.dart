@@ -269,12 +269,16 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     final cats = context.watch<AppData>().visibleCategories('expense');
     return Scaffold(
       appBar: AppBar(title: Text(editing ? 'Sửa ngân sách' : 'Tạo ngân sách')),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
+      body: ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.all(16),
+          children: [
         TextField(controller: _name, maxLength: 40, decoration: const InputDecoration(labelText: 'Tên ngân sách', hintText: 'vd: Chi tiêu tháng')),
         const SizedBox(height: 4),
         TextField(
           controller: _limit,
-          keyboardType: TextInputType.number,
+          keyboardType: moneyKeyboard,
+          textInputAction: TextInputAction.done,
           inputFormatters: [MoneyInputFormatter()],
           decoration: const InputDecoration(labelText: 'Hạn mức', suffixText: 'đ'),
         ),
