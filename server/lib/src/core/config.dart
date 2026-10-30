@@ -120,7 +120,7 @@ class Config {
       refreshTtl: Duration(days: getInt('REFRESH_TOKEN_DAYS', 30)),
       storageDriver: driver,
       uploadDir: get('UPLOAD_DIR', './storage/attachments'),
-      supabaseUrl: get('SUPABASE_URL').replaceAll(RegExp(r'/+$'), ''),
+      supabaseUrl: _origin(get('SUPABASE_URL')),
       supabaseKey: get('SUPABASE_SERVICE_KEY'),
       supabaseBucket: get('SUPABASE_BUCKET', 'attachments'),
       geminiApiKey: get('GEMINI_API_KEY'),
@@ -134,4 +134,12 @@ class Config {
       trustProxy: getBool('TRUST_PROXY', false),
     );
   }
+}
+
+/// Chỉ giữ phần gốc của địa chỉ (https://xxxx.supabase.co), phòng khi dán thừa /rest/v1 hoặc dấu / ở cuối.
+String _origin(String url) {
+  if (url.isEmpty) return url;
+  final u = Uri.tryParse(url.trim());
+  if (u == null || !u.hasScheme || u.host.isEmpty) return url.trim();
+  return u.hasPort ? '${u.scheme}://${u.host}:${u.port}' : '${u.scheme}://${u.host}';
 }

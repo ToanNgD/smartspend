@@ -26,6 +26,8 @@ class AppData extends ChangeNotifier {
   bool hideAmounts = false;
   /// Tăng mỗi khi giao dịch thay đổi để các màn hình danh sách tự tải lại.
   int txVersion = 0;
+  /// Lý do lần tải ảnh gần nhất bị lỗi (hiển thị cho người dùng thay vì báo chung chung).
+  String? lastUploadError;
 
   void toggleHide() {
     hideAmounts = !hideAmounts;
@@ -160,6 +162,7 @@ class AppData extends ChangeNotifier {
       try {
         await api.uploadBytes('/transactions/$txId/attachments', img);
       } on ApiException catch (e) {
+        lastUploadError = e.message;
         if (e.code == 'offline' || e.status >= 500) {
           await _savePending(txId, img);
           failed++;
@@ -201,6 +204,7 @@ class AppData extends ChangeNotifier {
         idx.remove(key);
         await cache.remove(key);
       } on ApiException catch (e) {
+        lastUploadError = e.message;
         if (e.code == 'offline' || e.status >= 500) {
           left++;
         } else {

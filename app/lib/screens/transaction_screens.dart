@@ -563,7 +563,9 @@ class _PendingThumb extends StatelessWidget {
     return GestureDetector(
       onTap: () async {
         final left = await data.retryPending(txId);
-        if (context.mounted) showInfo(context, left == 0 ? 'Đã tải ảnh lên' : 'Vẫn chưa tải lên được, kiểm tra mạng');
+        if (context.mounted) {
+          showInfo(context, left == 0 ? 'Đã tải ảnh lên' : 'Vẫn chưa tải lên được: ${data.lastUploadError ?? 'kiểm tra mạng'}');
+        }
         onDone();
       },
       child: Stack(children: [

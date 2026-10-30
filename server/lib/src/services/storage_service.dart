@@ -153,8 +153,10 @@ class SupabaseStorage extends StorageService {
         .post(_obj(k), headers: {..._auth, 'content-type': 'image/jpeg', 'x-upsert': 'false'}, body: bytes)
         .timeout(const Duration(seconds: 30));
     if (res.statusCode != 200 && res.statusCode != 201) {
-      stderr.writeln('[storage] Supabase upload lỗi ${res.statusCode}');
-      throw ApiError(502, 'storage_error', 'Không lưu được ảnh, vui lòng thử lại');
+      // Ghi kèm thông báo của Supabase (vd "Bucket not found") để dễ tìm nguyên nhân; không chứa khóa bí mật.
+      final msg = res.body.length > 200 ? res.body.substring(0, 200) : res.body;
+      stderr.writeln('[storage] Supabase upload lỗi ${res.statusCode}: $msg (bucket=$bucket, host=${Uri.parse(baseUrl).host})');
+      throw ApiError(502, 'storage_error', 'Máy chủ chưa lưu được ảnh (lỗi kho ảnh). Ảnh vẫn được giữ trên máy để thử lại sau.');
     }
   }
 
@@ -163,7 +165,7 @@ class SupabaseStorage extends StorageService {
     final res = await _http.get(_obj(k), headers: _auth).timeout(const Duration(seconds: 30));
     if (res.statusCode == 200) return res.bodyBytes;
     if (res.statusCode != 400 && res.statusCode != 404) {
-      stderr.writeln('[storage] Supabase download lỗi ${res.statusCode}');
+      stderr.writeln('[storage] Supabase download lỗi ${res.statusCode}: ${res.body.length > 200 ? res.body.substring(0, 200) : res.body}');
     }
     return null;
   }
