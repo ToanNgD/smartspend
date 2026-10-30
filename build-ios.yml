@@ -1,0 +1,45 @@
+# Build file IPA (chưa ký) cho iPhone trên máy Mac của GitHub - không cần có Mac.
+# Cách dùng: tab Actions -> "Build iOS (IPA chưa ký)" -> Run workflow -> nhập địa chỉ API -> chờ ~15 phút
+# -> tải SmartSpend-ipa ở mục Artifacts -> cài lên iPhone bằng Sideloadly (ký bằng Apple ID miễn phí).
+name: Build iOS (IPA chưa ký)
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "Địa chỉ API (vd http://192.168.10.21:8080/api/v1 hoặc https://xxx.trycloudflare.com/api/v1)"
+        required: true
+        default: "http://192.168.10.21:8080/api/v1"
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Tải thư viện
+        run: flutter pub get
+
+      - name: Build iOS (không ký)
+        run: flutter build ios --release --no-codesign --dart-define=API_URL=${{ inputs.api_url }}
+
+      - name: Đóng gói thành file .ipa
+        run: |
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry SmartSpend.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SmartSpend-ipa
+          path: app/SmartSpend.ipa
+          retention-days: 7

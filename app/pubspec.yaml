@@ -1,0 +1,50 @@
+name: smartspend
+description: "SmartSpend - Ứng dụng quản lý và tối ưu chi tiêu cá nhân thông minh tích hợp AI."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  provider: ">=6.1.2 <7.0.0"
+  dio: ">=5.7.0 <6.0.0"
+  flutter_secure_storage: ">=9.2.0 <12.0.0"
+  local_auth: ">=2.3.0 <4.0.0"
+  camera: ">=0.11.0 <0.13.0"
+  image_picker: ">=1.1.0 <2.0.0"
+  fl_chart: ">=0.69.0 <2.0.0"
+  intl: ">=0.19.0 <0.21.0"
+  uuid: ">=4.4.0 <5.0.0"
+  crypto: ">=3.0.3 <4.0.0"
+  image: ">=4.2.0 <5.0.0"
+  cryptography: ">=2.7.0 <3.0.0"
+  path_provider: ">=2.1.4 <3.0.0"
+  firebase_core: ">=3.6.0 <6.0.0"
+  firebase_messaging: ">=15.1.0 <18.0.0"
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ">=5.0.0 <7.0.0"
+
+flutter:
+  uses-material-design: true
+  # Phông chữ đóng gói sẵn trong app (không tải từ Internet khi chạy). Giấy phép: assets/fonts/OFL.txt
+  fonts:
+    - family: BeVietnamPro
+      fonts:
+        - asset: assets/fonts/BeVietnamPro-Regular.ttf
+        - asset: assets/fonts/BeVietnamPro-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/BeVietnamPro-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/BeVietnamPro-Bold.ttf
+          weight: 700
+    - family: Lexend
+      fonts:
+        - asset: assets/fonts/Lexend.ttf

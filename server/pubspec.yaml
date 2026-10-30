@@ -1,0 +1,24 @@
+name: smartspend_server
+description: Server API cho ứng dụng SmartSpend (Dart + Shelf + PostgreSQL).
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  shelf: ^1.4.3
+  shelf_router: ^1.1.5
+  postgres: ^3.5.20
+  dart_jsonwebtoken: ^3.4.1
+  bcrypt: ^1.2.0
+  crypto: ^3.0.8
+  uuid: ^4.6.0
+  http: ^1.6.0
+  image: ^4.12.0
+  googleapis_auth: ^2.3.5
+  dotenv: ^4.2.0
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^5.0.0

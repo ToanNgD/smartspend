@@ -1,0 +1,6 @@
+# Không đưa lên git
+server/.env
+server/storage/
+server/service-account*.json
+**/.dart_tool/
+**/build/
