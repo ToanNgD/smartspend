@@ -1,17 +1,22 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
 import '../core/db.dart';
+import 'ai_service.dart';
 import 'budget_service.dart';
 import 'push_service.dart';
 
 /// 5.2 Cảnh báo vượt ngân sách, 6.3 Dự báo và cảnh báo bất thường.
 /// Mỗi sự kiện chỉ cảnh báo một lần nhờ khóa dedupe_key UNIQUE trong bảng alerts.
 /// Nội dung thông báo không chứa số tiền cụ thể.
+/// Cảnh báo dự báo và bất thường (UC13): server tự tính bằng thống kê, sau đó nhờ dịch vụ AI
+/// diễn đạt câu chữ từ các con số đã tính; AI lỗi/hết lượt thì dùng câu mẫu (UC13 - 3a).
 class AlertService {
   final Db db;
   final PushService push;
-  AlertService(this.db, this.push);
+  final AiService? ai;
+  AlertService(this.db, this.push, [this.ai]);
 
   /// Gọi sau khi một khoản chi được tạo/sửa/khôi phục. Lỗi ở đây không làm hỏng giao dịch.
   Future<void> afterExpenseChange(String userId,
@@ -25,8 +30,9 @@ class AlertService {
         await checkBudgets(userId, categoryId: categoryId);
       }
       if (st['smart_alerts_enabled'] == true) {
-        await checkForecasts(userId, categoryId: categoryId);
-        if (newTransactionId != null) await checkAnomaly(userId, newTransactionId);
+        // background: nhờ AI diễn đạt và gửi thông báo chạy nền, không làm chậm việc lưu giao dịch.
+        await checkForecasts(userId, categoryId: categoryId, background: true);
+        if (newTransactionId != null) await checkAnomaly(userId, newTransactionId, background: true);
       }
     } catch (e) {
       stderr.writeln('[alerts] lỗi kiểm tra cảnh báo: ${e.runtimeType}');
@@ -101,7 +107,7 @@ class AlertService {
     return r?['ok'] == true;
   }
 
-  Future<void> checkForecasts(String userId, {String? categoryId}) async {
+  Future<void> checkForecasts(String userId, {String? categoryId, bool background = false}) async {
     final list = await forecasts(userId);
     final tz = await _tz(userId);
     for (final f in list) {
@@ -123,12 +129,26 @@ class AlertService {
           title: 'Dự báo vượt ngân sách',
           body: 'Với tốc độ hiện tại, ngân sách ${b['name']} có thể vượt vào ngày ${day!['d']}',
           budgetId: b['id'] as String);
-      if (id != null) await _push(userId, id);
+      if (id != null) {
+        await _deliver(userId, id,
+            background: background,
+            kind: 'du_bao_vuot_ngan_sach',
+            name: b['name'] as String,
+            mustContain: day['d'] as String,
+            facts: {
+              'ten_ngan_sach': b['name'] as String,
+              'chu_ky': b['period'] == 'week' ? 'tuần' : 'tháng',
+              'da_dung_phan_tram': (b['percent'] as double).round(),
+              'du_kien_cuoi_ky_phan_tram': ((f['projected_total'] as int) * 100 / (f['amount_limit'] as int)).round(),
+              'ngay_du_kien_vuot': day['d'] as String,
+              'so_ngay_con_lai': b['days_left'] as int,
+            });
+      }
     }
   }
 
   /// So khoản chi mới với trung bình 90 ngày của cùng danh mục (trung bình, độ lệch chuẩn).
-  Future<void> checkAnomaly(String userId, String txId) async {
+  Future<void> checkAnomaly(String userId, String txId, {bool background = false}) async {
     final t = await db.one(
         "SELECT t.amount, t.category_id, c.name AS category FROM transactions t "
         "JOIN categories c ON c.id = t.category_id "
@@ -167,7 +187,16 @@ class AlertService {
           body: 'Khoản chi ${t['category']} vừa rồi cao hơn nhiều so với thường lệ',
           transactionId: txId,
           categoryId: t['category_id'] as String);
-      if (id != null) await _push(userId, id);
+      if (id != null) {
+        await _deliver(userId, id,
+            background: background,
+            kind: 'chi_bat_thuong',
+            name: t['category'] as String,
+            facts: {
+              'danh_muc': t['category'] as String,
+              'gap_bao_nhieu_lan_trung_binh': double.parse((amount / avg).toStringAsFixed(1)),
+            });
+      }
     }
   }
 
@@ -213,6 +242,38 @@ class AlertService {
           'body': body,
         });
     return r?['id'] as String?;
+  }
+
+  /// Nhờ AI diễn đạt lại câu cảnh báo (nếu được) rồi gửi thông báo đẩy.
+  /// Cảnh báo đã được lưu sẵn với câu mẫu, nên AI lỗi hay chậm thì người dùng vẫn nhận được cảnh báo.
+  Future<void> _deliver(String userId, String alertId,
+      {required bool background,
+      required String kind,
+      required String name,
+      required Map<String, Object> facts,
+      String? mustContain}) async {
+    Future<void> run() async {
+      try {
+        final p = await ai?.phraseAlert(userId, kind: kind, name: name, facts: facts, mustContain: mustContain);
+        if (p != null) {
+          await db.exec('UPDATE alerts SET title = @t, body = @b WHERE id = @id',
+              {'t': p.title, 'b': p.body, 'id': alertId});
+        }
+      } catch (e) {
+        stderr.writeln('[alerts] lỗi diễn đạt cảnh báo bằng AI: ${e.runtimeType}');
+      }
+      try {
+        await _push(userId, alertId);
+      } catch (e) {
+        stderr.writeln('[alerts] lỗi gửi thông báo: ${e.runtimeType}');
+      }
+    }
+
+    if (background) {
+      unawaited(run());
+    } else {
+      await run();
+    }
   }
 
   Future<void> _push(String userId, String alertId) async {

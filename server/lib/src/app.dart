@@ -27,13 +27,14 @@ import 'services/storage_service.dart';
 AppContext buildContext(Config config) {
   final db = Db.connect(config);
   final push = PushService(db, config.fcmServiceAccount);
+  final ai = AiService(config, db);
   return AppContext(
     config: config,
     db: db,
     jwt: JwtService(config),
     push: push,
-    alerts: AlertService(db, push),
-    ai: AiService(config, db),
+    alerts: AlertService(db, push, ai),
+    ai: ai,
     storage: config.storageDriver == 'supabase'
         ? SupabaseStorage(config.supabaseUrl, config.supabaseKey, config.supabaseBucket)
         : LocalStorage(config.uploadDir),

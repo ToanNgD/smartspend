@@ -18,6 +18,7 @@ class GeminiClient {
     required String systemInstruction,
     required Object input,
     required Map<String, dynamic> schema,
+    Duration timeout = const Duration(seconds: 20),
   }) async {
     if (!enabled) return null;
     final uri = Uri.parse(
@@ -47,7 +48,7 @@ class GeminiClient {
             .post(uri,
                 headers: {'content-type': 'application/json', 'x-goog-api-key': apiKey},
                 body: jsonEncode(body(withSchema)))
-            .timeout(const Duration(seconds: 20));
+            .timeout(timeout);
         if (res.statusCode == 400 && withSchema) continue; // thử lại không kèm schema
         if (res.statusCode != 200) {
           stderr.writeln('[ai] Gemini trả về mã ${res.statusCode}');

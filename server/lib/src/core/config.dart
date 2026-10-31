@@ -24,6 +24,7 @@ class Config {
   final String geminiModel;
   final int aiParsePerDay;
   final int aiAnalyzePerDay;
+  final int aiPhrasePerDay;
   final String fcmServiceAccount;
   final bool enableScheduler;
   final int registerPerHour;
@@ -50,6 +51,7 @@ class Config {
     required this.geminiModel,
     required this.aiParsePerDay,
     required this.aiAnalyzePerDay,
+    required this.aiPhrasePerDay,
     required this.fcmServiceAccount,
     required this.enableScheduler,
     required this.registerPerHour,
@@ -128,6 +130,7 @@ class Config {
       geminiModel: get('GEMINI_MODEL', 'gemini-3.6-flash'),
       aiParsePerDay: getInt('AI_PARSE_PER_DAY', 50),
       aiAnalyzePerDay: getInt('AI_ANALYZE_PER_DAY', 3),
+      aiPhrasePerDay: getInt('AI_PHRASE_PER_DAY', 10),
       // FCM_SERVICE_ACCOUNT_JSON: dán nguyên nội dung file JSON (tiện trên Render); FCM_SERVICE_ACCOUNT: đường dẫn file.
       fcmServiceAccount: get('FCM_SERVICE_ACCOUNT_JSON').trim().startsWith('{')
           ? get('FCM_SERVICE_ACCOUNT_JSON').trim()

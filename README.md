@@ -88,6 +88,7 @@ Nếu Gradle báo lỗi "different roots" (code ở ổ D, Flutter ở ổ C): `
 # - test/api_test.dart: 20 nhóm ca kiểm thử API, gồm cả các ca bảo mật như IDOR, khóa đăng nhập,
 #   refresh token bị dùng lại, tệp giả dạng ảnh, EXIF.
 # - test/client_ip_test.dart: cách lấy IP thật khi chạy sau Cloudflare/Render (không cần server).
+# - test/alert_phrase_test.dart: kiểm tra câu cảnh báo do AI viết (không có số tiền, đúng tên, đúng ngày).
 cd server
 dart test
 
@@ -104,7 +105,7 @@ Lưu ý: khi chạy `dart test`, nên đặt `REGISTER_PER_IP_PER_HOUR=1000` tro
 
 App vẫn chạy đầy đủ khi chưa làm các bước dưới đây:
 
-- **Chưa có Gemini key:** server dùng bộ phân tích dự phòng chạy ngay trên server. Bộ này hiểu được câu như "trưa nay ăn phở 50k, cà phê 25k" và vẫn tạo được thẻ gợi ý từ thống kê.
+- **Chưa có Gemini key:** server dùng bộ phân tích dự phòng chạy ngay trên server. Bộ này hiểu được câu như "trưa nay ăn phở 50k, cà phê 25k" và vẫn tạo được thẻ gợi ý từ thống kê. Cảnh báo dự báo và chi bất thường dùng câu mẫu có sẵn thay vì câu do AI viết.
 - **Chưa cấu hình Firebase:** cảnh báo vẫn xem được trong màn hình Cảnh báo, chỉ không có thông báo đẩy.
 
 ### 3.1. Bật AI thật (Gemini)
@@ -117,6 +118,8 @@ Lưu ý về gói miễn phí: Google có thể dùng dữ liệu của gói mi�
 
 - Khi demo với gói miễn phí, chỉ dùng **dữ liệu mẫu**.
 - Khi phát hành thật, phải dùng gói trả phí, vì gói này không dùng dữ liệu để huấn luyện.
+
+Khi có key, AI được dùng cho 3 việc: đọc câu nhập (giới hạn `AI_PARSE_PER_DAY`), phân tích gợi ý (`AI_ANALYZE_PER_DAY`) và viết câu cảnh báo dự báo/chi bất thường (`AI_PHRASE_PER_DAY`, hết lượt thì dùng câu mẫu).
 
 Có thể đổi model bằng biến `GEMINI_MODEL`. Mặc định là `gemini-3.6-flash`; nếu Google đổi tên model, xem tên mới tại https://ai.google.dev/gemini-api/docs/models.
 
