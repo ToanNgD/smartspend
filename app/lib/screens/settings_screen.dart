@@ -114,6 +114,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: const Text('Mở khóa bằng vân tay / khuôn mặt'),
                 value: _bioOn ?? false,
                 onChanged: (v) async {
+                  // UC03: tắt sinh trắc học phải xác thực lại bằng PIN; bật thì hệ điều hành tự hỏi vân tay/khuôn mặt.
+                  if (!v && !await _verifyPin()) return;
                   await s.vault.setBiometric(v);
                   _refreshLock();
                 },

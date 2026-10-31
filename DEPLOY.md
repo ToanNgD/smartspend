@@ -122,16 +122,17 @@ Lệnh tạo tài khoản `demo@smartspend.vn` / `demo1234`. Mất khoảng 2–
 
 Server đã có HTTPS nên giờ build được **bản release**: nhẹ hơn, chạy mượt hơn, cài cho ai cũng được.
 
+Địa chỉ server cloud đã ghi sẵn trong `app/lib/core/config.dart` (`cloudApiUrl`), nên không cần truyền thêm tham số. Nếu đổi sang server khác thì sửa dòng đó trước khi build.
+
 **Android**, trong thư mục `app`:
 ```
-flutter build apk --release --split-per-abi --dart-define=API_URL=https://smartspend-api-xxxx.onrender.com/api/v1
+flutter build apk --release --split-per-abi
 ```
 File để gửi cho mọi người: `app\build\app\outputs\flutter-apk\app-arm64-v8a-release.apk`.
 
 **iPhone:**
-1. Vào GitHub, mở tab **Actions**, chọn **Build iOS (IPA chưa ký)**, bấm **Run workflow**.
-2. Ô địa chỉ API điền `https://smartspend-api-xxxx.onrender.com/api/v1`.
-3. Cài file IPA bằng Sideloadly như trước.
+1. Vào GitHub, mở tab **Actions**, chọn **Build iOS (IPA chưa ký)**, bấm **Run workflow**. Ô địa chỉ API để trống để dùng địa chỉ server cloud mặc định.
+2. Cài file IPA bằng Sideloadly như trước.
 
 Từ giờ không phải bật server trên máy tính nữa.
 
@@ -142,5 +143,6 @@ Từ giờ không phải bật server trên máy tính nữa.
 - Mỗi lần `git push` lên nhánh `main`, Render tự build và cập nhật server (khoảng 5 phút).
 - **Server cloud có CSDL riêng**, khác CSDL trên máy tính, nên tài khoản tạo ở một bên không có ở bên kia.
 - **Ảnh** lưu trong Supabase Storage, bucket riêng tư. App vẫn chỉ tải ảnh được qua server có kiểm tra token, đúng như đặc tả.
+- **Thông báo đẩy (chỉ Android):** trên Render, vào **Environment → Add**, thêm biến `FCM_SERVICE_ACCOUNT_JSON` và dán toàn bộ nội dung file khóa service account của Firebase (xem README mục 3.2). Lưu lại, server tự khởi động lại; log có dòng `Thông báo đẩy: bật` là được.
 - **Gemini:** thêm biến `GEMINI_API_KEY` trên Render ở **Environment → Add**, lưu lại là server tự khởi động lại. Nhớ lưu ý: gói miễn phí của Gemini có thể bị dùng để huấn luyện, nên chỉ demo với dữ liệu mẫu.
 - Hai nơi giữ thông tin bí mật là **Render → Environment** (biến môi trường) và file `.env` trên máy. Không có thông tin bí mật nào nằm trong code hay trong app.

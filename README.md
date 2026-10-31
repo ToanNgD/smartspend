@@ -55,15 +55,15 @@ dart run tool/seed_demo.dart          # tài khoản: demo@smartspend.vn / demo1
 ```bash
 cd app
 flutter pub get
-flutter run                                   # máy ảo Android tự trỏ tới 10.0.2.2:8080
-flutter run --dart-define=API_URL=http://192.168.1.10:8080/api/v1   # điện thoại thật
+flutter run                                   # mặc định gọi server cloud (xem DEPLOY.md)
+flutter run --dart-define=API_URL=http://10.0.2.2:8080/api/v1       # máy ảo Android gọi server trên máy tính
+flutter run --dart-define=API_URL=http://192.168.1.10:8080/api/v1   # điện thoại thật gọi server trên máy tính
 ```
 
-Khi dùng điện thoại thật:
+Địa chỉ server cloud mặc định nằm ở `app/lib/core/config.dart` (`cloudApiUrl`). Chỉ cần `--dart-define=API_URL=...` khi muốn thử với server chạy trên máy tính:
 
-- `192.168.1.10` là IP máy tính trong mạng Wi-Fi. Xem bằng lệnh `ipconfig` trên Windows.
-- Điện thoại và máy tính phải dùng cùng một mạng Wi-Fi.
-- Windows Firewall phải cho phép cổng 8080.
+- `10.0.2.2` là địa chỉ máy tính khi nhìn từ máy ảo Android.
+- `192.168.1.10` là IP máy tính trong mạng Wi-Fi. Xem bằng lệnh `ipconfig` trên Windows. Điện thoại và máy tính phải dùng cùng một mạng Wi-Fi, và Windows Firewall phải cho phép cổng 8080.
 
 Bản debug được gọi server bằng HTTP. Bản phát hành bắt buộc dùng HTTPS (xem mục 4).
 
@@ -108,13 +108,17 @@ Có thể đổi model bằng biến `GEMINI_MODEL`. Mặc định là `gemini-3
 
 ### 3.2. Bật thông báo đẩy (Firebase Cloud Messaging)
 
+Thông báo đẩy chỉ có trên **Android**. iPhone cần tài khoản Apple Developer trả phí để nhận thông báo đẩy, nên trên iPhone cảnh báo chỉ hiện trong màn hình Cảnh báo của app.
+
 1. Tạo project tại https://console.firebase.google.com.
-2. Thêm ứng dụng Android với package name `vn.smartspend.smartspend`.
-3. Trong thư mục `app/`, chạy `dart pub global activate flutterfire_cli`, sau đó chạy `flutterfire configure`. Lệnh này sẽ tự ghi đè file `lib/firebase_options.dart` và thêm `google-services.json`.
+2. Thêm ứng dụng Android với package name `vn.smartspend.smartspend`, tải file `google-services.json` về và chép vào `app/android/app/`.
+3. Trong thư mục `app/`, chạy `dart run tool/firebase_setup.dart`. Lệnh này đọc `google-services.json` và ghi lại file `lib/firebase_options.dart`.
 4. Lấy khóa cho server:
    - Vào Firebase Console, chọn Project settings, rồi Service accounts, rồi **Generate new private key**.
-   - Lưu file JSON vào thư mục `server/`. **Không commit file này lên git.**
-   - Ghi đường dẫn file vào `.env`: `FCM_SERVICE_ACCOUNT=./service-account.json`.
+   - Giữ file JSON ở ngoài thư mục dự án (ví dụ thư mục Downloads). **Không commit file này lên git.**
+   - Server cloud: trên Render, vào **Environment**, thêm biến `FCM_SERVICE_ACCOUNT_JSON` và dán **toàn bộ nội dung** file JSON vào.
+   - Server trên máy tính: ghi đường dẫn file vào `.env`, ví dụ `FCM_SERVICE_ACCOUNT=C:/Users/ten/Downloads/smartspend-firebase-adminsdk.json`.
+5. Khởi động lại server. Log phải có dòng `Thông báo đẩy: bật`.
 
 ### 3.3. Thử trên điện thoại thật
 

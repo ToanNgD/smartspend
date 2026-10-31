@@ -19,6 +19,7 @@ Khi có lỗi, server trả về dạng: `{"error": {"code": "...", "message": "
 ## Tài khoản và phiên (UC01, UC02)
 | Phương thức | Đường dẫn | Mô tả |
 |---|---|---|
+| GET | /health | Không cần token. Truy vấn thử CSDL rồi trả `{"status":"ok"}`. Dùng cho dịch vụ ping định kỳ (cron-job.org) và để kiểm tra server còn chạy. |
 | POST | /auth/register | `{full_name, email, password}` trả về `{user, access_token, refresh_token, expires_in}`. Tự tạo 12 danh mục mặc định và ví "Tiền mặt". Mỗi IP chỉ được đăng ký một số lần nhất định. |
 | POST | /auth/login | `{email, password}`. Sai 5 lần thì khóa 15 phút (mã 429 `login_locked`). Lỗi luôn trả thông báo chung, không cho biết email có tồn tại hay không. |
 | POST | /auth/refresh | `{refresh_token}` trả về cặp token mới, token cũ bị vô hiệu. Nếu token cũ bị dùng lại thì hủy mọi phiên của tài khoản (`session_revoked`). |

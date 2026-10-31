@@ -271,12 +271,51 @@ class _SummaryCompare extends StatelessWidget {
   }
 }
 
-class _TrendChart extends StatelessWidget {
+class _TrendChart extends StatefulWidget {
   final ReportQuery q;
   const _TrendChart({required this.q});
   @override
+  State<_TrendChart> createState() => _TrendChartState();
+}
+
+class _TrendChartState extends State<_TrendChart> {
+  /// Nhóm người dùng chọn; null = dùng mặc định theo kỳ.
+  String? _picked;
+
+  /// Các cách nhóm hợp lý cho từng kỳ (UC14: theo ngày, tuần hoặc tháng).
+  static List<String> _options(String period) => switch (period) {
+        'week' => const ['day'],
+        'month' => const ['day', 'week'],
+        'year' => const ['week', 'month'],
+        _ => const ['day', 'week', 'month'],
+      };
+
+  static const _names = {'day': 'Ngày', 'week': 'Tuần', 'month': 'Tháng'};
+
+  @override
   Widget build(BuildContext context) {
-    final group = q.period == 'year' ? 'month' : 'day';
+    final q = widget.q;
+    final options = _options(q.period);
+    final group = options.contains(_picked) ? _picked! : (q.period == 'year' ? 'month' : 'day');
+    final chart = _buildChart(context, q, group);
+    if (options.length < 2) return chart;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Align(
+        alignment: Alignment.centerRight,
+        child: SegmentedButton<String>(
+          style: const ButtonStyle(visualDensity: VisualDensity.compact),
+          showSelectedIcon: false,
+          segments: [for (final o in options) ButtonSegment(value: o, label: Text('Theo ${_names[o]!.toLowerCase()}'))],
+          selected: {group},
+          onSelectionChanged: (s) => setState(() => _picked = s.first),
+        ),
+      ),
+      const SizedBox(height: 8),
+      chart,
+    ]);
+  }
+
+  Widget _buildChart(BuildContext context, ReportQuery q, String group) {
     return Fetch(
       path: '/reports/trend',
       query: {...q.toQuery(), 'group': group},

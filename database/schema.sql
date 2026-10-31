@@ -181,7 +181,7 @@ CREATE TRIGGER trg_tx_category_type BEFORE INSERT OR UPDATE OF category_id, type
 
 -- ---------------------------------------------------------------------
 -- 8. transaction_attachments: ảnh giao dịch (món đồ đã mua hoặc hóa đơn) đính kèm giao dịch (UC06.1)
---    Tệp ảnh nằm trong kho lưu trữ riêng tư (thư mục server/MinIO/...),
+--    Tệp ảnh nằm trong kho lưu trữ riêng tư (Supabase Storage khi chạy cloud, thư mục server/storage khi chạy trên máy),
 --    bảng này chỉ lưu khóa tệp và thông tin kiểm tra.
 -- ---------------------------------------------------------------------
 CREATE TABLE transaction_attachments (
