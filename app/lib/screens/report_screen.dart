@@ -57,6 +57,17 @@ class _CategoryReportCardState extends State<CategoryReportCard> {
                 ('Khác', (other['amount'] as num).toInt(), (other['percent'] as num).toDouble(), Colors.grey, 'dots', null),
             ];
             final shown = widget.compact ? slices.take(4).toList() : slices;
+            // Bấm một mục: danh mục thật thì mở giao dịch của danh mục đó;
+            // "Khác" (gộp các danh mục dưới 3%) thì mở danh sách các danh mục bên trong.
+            void open((String, int, double, Color, String, String?) x) {
+              if (x.$6 != null) {
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => TransactionsScreen(initialCategoryId: x.$6, title: x.$1, standalone: true)));
+              } else if (other != null) {
+                _showOther(context, other);
+              }
+            }
+
             return Column(children: [
               Row(children: [
                 SizedBox(
@@ -82,12 +93,7 @@ class _CategoryReportCardState extends State<CategoryReportCard> {
                   child: Column(children: [
                     for (final x in shown)
                       InkWell(
-                        onTap: x.$6 == null || widget.compact
-                            ? null
-                            : () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) => TransactionsScreen(initialCategoryId: x.$6, title: x.$1, standalone: true))),
+                        onTap: widget.compact ? null : () => open(x),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 5),
                           child: Row(children: [
@@ -111,16 +117,50 @@ class _CategoryReportCardState extends State<CategoryReportCard> {
                     title: Text(x.$1),
                     subtitle: BudgetBarThin(percent: x.$3, color: x.$4),
                     trailing: Money(x.$2, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    onTap: x.$6 == null
-                        ? null
-                        : () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => TransactionsScreen(initialCategoryId: x.$6, title: x.$1, standalone: true))),
+                    onTap: () => open(x),
                   ),
               ],
             ]);
           },
+        ),
+      ),
+    );
+  }
+
+  /// Danh sách các danh mục nhỏ (dưới 3%) đã gộp vào "Khác"; bấm từng mục để xem giao dịch.
+  void _showOther(BuildContext context, Map<String, dynamic> other) {
+    final cats = ((other['categories'] as List?) ?? []).map((e) => Map<String, dynamic>.from(e)).toList();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(sheet).size.height * 0.7),
+          child: ListView(shrinkWrap: true, padding: const EdgeInsets.fromLTRB(16, 0, 16, 16), children: [
+            Text('Các danh mục trong "Khác"', style: Theme.of(sheet).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text('Mỗi danh mục dưới 3% tổng của kỳ nên được gộp chung trên biểu đồ.',
+                style: TextStyle(color: sheet.muted, fontSize: 12)),
+            const SizedBox(height: 8),
+            for (final c in cats)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CategoryIcon(icon: (c['icon'] as String?) ?? 'dots', color: (c['color'] as String?) ?? '#9E9E9E', size: 36),
+                title: Text(c['name'] as String),
+                subtitle: Text('${(c['percent'] as num).toStringAsFixed(1)}% · ${(c['count'] as num).toInt()} giao dịch',
+                    style: TextStyle(color: sheet.muted, fontSize: 12)),
+                trailing: Money((c['amount'] as num).toInt(), style: const TextStyle(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => TransactionsScreen(
+                              initialCategoryId: c['category_id'] as String, title: c['name'] as String, standalone: true)));
+                },
+              ),
+          ]),
         ),
       ),
     );
