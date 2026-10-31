@@ -90,6 +90,12 @@ class _CategoryFormState extends State<_CategoryForm> {
   late String _icon = widget.edit?.icon ?? 'dots';
   late String _color = widget.edit?.color ?? _palette.first;
 
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
   Future<void> _save() async {
     final name = _name.text.trim();
     if (name.isEmpty) return showInfo(context, 'Nhập tên danh mục');

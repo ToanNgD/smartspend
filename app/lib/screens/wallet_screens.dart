@@ -149,6 +149,13 @@ class _WalletFormState extends State<_WalletForm> {
   final _initial = TextEditingController();
   late String _type = widget.edit?.type ?? 'bank';
 
+  @override
+  void dispose() {
+    _name.dispose();
+    _initial.dispose();
+    super.dispose();
+  }
+
   Future<void> _save() async {
     if (_name.text.trim().isEmpty) return showInfo(context, 'Nhập tên ví');
     final api = context.read<ApiClient>();

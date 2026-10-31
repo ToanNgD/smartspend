@@ -54,6 +54,13 @@ class _TxEditorState extends State<TxEditor> {
     _note = TextEditingController(text: d.note ?? '');
   }
 
+  @override
+  void dispose() {
+    _amount.dispose();
+    _note.dispose();
+    super.dispose();
+  }
+
   void _changed() {
     setState(() {});
     widget.onChanged?.call();

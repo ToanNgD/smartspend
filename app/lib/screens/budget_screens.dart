@@ -232,6 +232,13 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   late String _scope = widget.edit?.scope ?? (widget.presetCategoryId != null ? 'categories' : 'all');
   late final Set<String> _cats = {...?widget.edit?.categoryIds, if (widget.presetCategoryId != null) widget.presetCategoryId!};
 
+  @override
+  void dispose() {
+    _name.dispose();
+    _limit.dispose();
+    super.dispose();
+  }
+
   Future<void> _save() async {
     final limit = int.tryParse(_limit.text.replaceAll(RegExp(r'[^0-9]'), ''));
     if (_name.text.trim().isEmpty) return showInfo(context, 'Nhập tên ngân sách');

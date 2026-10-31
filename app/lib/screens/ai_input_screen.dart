@@ -21,6 +21,12 @@ class _AiInputScreenState extends State<AiInputScreen> {
   final _text = TextEditingController();
   static const _examples = ['trưa nay ăn phở 50k', 'cà phê 25k, gửi xe 5k', 'hôm qua đổ xăng 80 nghìn', 'nhận lương 15tr', 'tiền nhà 3 triệu rưỡi'];
 
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
   Future<void> _send() async {
     final t = _text.text.trim();
     if (t.isEmpty) return;

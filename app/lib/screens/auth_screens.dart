@@ -64,6 +64,13 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _show = false;
   String? _error;
 
+  @override
+  void dispose() {
+    _email.dispose();
+    _pw.dispose();
+    super.dispose();
+  }
+
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
     setState(() => _error = null);
@@ -140,6 +147,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _pw = TextEditingController();
   final _pw2 = TextEditingController();
   String? _error;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _email.dispose();
+    _pw.dispose();
+    _pw2.dispose();
+    super.dispose();
+  }
 
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
