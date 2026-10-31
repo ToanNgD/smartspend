@@ -246,10 +246,24 @@ class _SummaryCompare extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
+              // Thu và Chi chia đôi chiều ngang; Chênh lệch nằm dòng riêng bên dưới
+              // để số tiền lớn (vd xem theo năm) không bị dính vào nhau trên màn hình hẹp.
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 cell('Thu', (r['income'] as num).toInt(), (ch['income'] as num?)?.toDouble(), context.incomeColor),
+                const SizedBox(width: 16),
                 cell('Chi', (r['expense'] as num).toInt(), (ch['expense'] as num?)?.toDouble(), context.expenseColor, lowerIsBetter: true),
-                cell('Chênh lệch', (r['net'] as num).toInt(), null, context.cs.onSurface),
+              ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                Text('Chênh lệch: ', style: TextStyle(color: context.muted, fontSize: 13)),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Money((r['net'] as num).toInt(),
+                        sign: true, colored: true, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                  ),
+                ),
               ]),
               const SizedBox(height: 10),
               Text(

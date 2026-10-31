@@ -15,12 +15,14 @@ Phần bảo mật, quy tắc nghiệp vụ và luồng xử lý được làm t
 
 ## 1. Cài đặt lần đầu
 
+Server đã chạy sẵn trên cloud (xem [DEPLOY.md](DEPLOY.md)) và app mặc định gọi server đó. Nếu chỉ muốn chạy thử app thì làm mục 1.3 hoặc 1.4 là đủ, bỏ qua 1.1 và 1.2.
+
 Cần cài trước:
 
 - Flutter SDK (đã có Dart đi kèm).
-- PostgreSQL 15 trở lên.
-- VS Code với extension Flutter.
+- VS Code với extension Flutter, hoặc Android Studio với plugin Flutter.
 - Android Studio, để có Android SDK và máy ảo. Có thể dùng điện thoại thật thay cho máy ảo.
+- PostgreSQL 15 trở lên: **chỉ cần khi chạy server trên máy tính** (mục 1.1, 1.2).
 
 ### 1.1. Tạo cơ sở dữ liệu
 
@@ -67,13 +69,25 @@ flutter run --dart-define=API_URL=http://192.168.1.10:8080/api/v1   # điện th
 
 Bản debug được gọi server bằng HTTP. Bản phát hành bắt buộc dùng HTTPS (xem mục 4).
 
+### 1.4. Chạy app bằng Android Studio
+
+1. Cài plugin **Flutter** trong **Settings → Plugins** (plugin Dart tự cài theo). Chạy `flutter doctor` để kiểm tra mục Android đã có dấu tích.
+2. Tạo máy ảo trong **Device Manager**. Nên chọn bản có biểu tượng **Google Play** để nhận được thông báo đẩy.
+3. **File → Open** và chọn **thư mục `app`** (không mở thư mục gốc).
+4. Bấm **Pub get** ở thanh thông báo phía trên (hoặc chạy `flutter pub get`).
+5. Chọn máy ảo ở thanh công cụ rồi bấm **Run**. Lần build đầu mất khoảng 5–10 phút.
+
+Nếu Gradle báo lỗi "different roots" (code ở ổ D, Flutter ở ổ C): `gradle.properties` đã có sẵn `kotlin.incremental=false`, chỉ cần chạy `flutter clean` rồi Run lại.
+
 ---
 
 ## 2. Kiểm thử
 
 ```bash
-# Server: chạy server trước, sau đó chạy lệnh dưới. Có 20 nhóm ca kiểm thử,
-# gồm cả các ca bảo mật như IDOR, khóa đăng nhập, refresh token bị dùng lại, tệp giả dạng ảnh, EXIF.
+# Server: chạy server trước, sau đó chạy lệnh dưới.
+# - test/api_test.dart: 20 nhóm ca kiểm thử API, gồm cả các ca bảo mật như IDOR, khóa đăng nhập,
+#   refresh token bị dùng lại, tệp giả dạng ảnh, EXIF.
+# - test/client_ip_test.dart: cách lấy IP thật khi chạy sau Cloudflare/Render (không cần server).
 cd server
 dart test
 
@@ -122,11 +136,11 @@ Thông báo đẩy chỉ có trên **Android**. iPhone cần tài khoản Apple 
 
 ### 3.3. Thử trên điện thoại thật
 
-Có ba tính năng chỉ chạy trên máy thật:
+Một số tính năng cần lưu ý khi thử:
 
-- **Camera kiểu Locket.** Máy ảo có camera giả, chỉ thử được một phần.
-- **Vân tay / Face ID.**
-- **Thông báo đẩy.**
+- **Camera kiểu Locket:** máy ảo có camera giả, chỉ thử được một phần.
+- **Vân tay / Face ID:** chỉ chạy trên máy thật. Trên máy ảo, app dùng mã PIN.
+- **Thông báo đẩy:** chỉ có trên Android (điện thoại thật, hoặc máy ảo có Google Play). iPhone không có thông báo đẩy vì cần tài khoản Apple Developer trả phí; cảnh báo vẫn hiện trong màn hình Cảnh báo.
 
 ---
 
