@@ -133,7 +133,12 @@ class _GateState extends State<_Gate> {
         Positioned.fill(
           child: ColoredBox(
             color: Theme.of(context).scaffoldBackgroundColor,
-            child: Center(child: Icon(Icons.savings_rounded, size: 64, color: Theme.of(context).colorScheme.primary)),
+            child: Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(22),
+                child: Image.asset('assets/images/logo.png', width: 88, height: 88),
+              ),
+            ),
           ),
         ),
     ]);

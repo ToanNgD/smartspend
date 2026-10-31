@@ -30,11 +30,9 @@ class _AuthFrame extends StatelessWidget {
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Row(children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(color: context.cs.primary, borderRadius: BorderRadius.circular(14)),
-                      child: Icon(Icons.savings_rounded, color: context.cs.onPrimary),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset('assets/images/logo.png', width: 48, height: 48),
                     ),
                     const SizedBox(width: 12),
                     Text('SmartSpend', style: Theme.of(context).textTheme.titleLarge),
