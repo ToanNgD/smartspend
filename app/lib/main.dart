@@ -24,10 +24,28 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Bản phát hành: nếu một ô giao diện lỗi thì hiện thông báo nhỏ thay vì vùng trống.
   if (kReleaseMode) {
-    ErrorWidget.builder = (details) => const Material(
-          color: Colors.transparent,
-          child: Center(child: Padding(padding: EdgeInsets.all(16), child: Text('Không hiển thị được nội dung này'))),
-        );
+    // TẠM THỜI (để tìm lỗi trên iPhone): hiện nội dung lỗi thật. Tìm ra lỗi xong sẽ trả lại như cũ.
+    ErrorWidget.builder = (details) {
+      final stack = (details.stack?.toString() ?? '').split('\n').take(25).join('\n');
+      return Directionality(
+        textDirection: TextDirection.ltr,
+        child: ColoredBox(
+          color: const Color(0xFFFFFFFF),
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                'Không hiển thị được nội dung này\n\n'
+                'LỖI: ${details.exceptionAsString()}\n\n'
+                'NGỮ CẢNH: ${details.context?.toDescription() ?? ''}\n\n'
+                '$stack',
+                style: const TextStyle(color: Color(0xFF000000), fontSize: 11, decoration: TextDecoration.none),
+              ),
+            ),
+          ),
+        ),
+      );
+    };
   }
   await initializeDateFormatting('vi');
   final tokens = TokenStore();
