@@ -24,19 +24,20 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   // Chỉ dựng một tab khi người dùng mở nó lần đầu -> mở app nhanh hơn, ít gọi server hơn.
   final Set<int> _visited = {0};
   bool _opening = false;
+  late final Session _session;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
-    context.read<Session>().addListener(_checkLink);
+    _session = context.read<Session>()..addListener(_checkLink);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    context.read<Session>().removeListener(_checkLink);
+    _session.removeListener(_checkLink);
     super.dispose();
   }
 
