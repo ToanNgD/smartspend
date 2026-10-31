@@ -75,27 +75,30 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         'limit': '30',
       };
 
+  /// Tải lại trang đầu. Giữ danh sách cũ trên màn hình cho đến khi có dữ liệu mới để không bị nháy trắng.
   Future<void> _reload() async {
-    _items.clear();
-    _cursor = null;
-    _done = false;
-    _totals = null;
     _selected.clear();
     await _more(reset: true);
   }
 
   Future<void> _more({bool reset = false}) async {
     if (_loading && !reset) return;
-    if (_done) return;
+    if (_done && !reset) return;
     final id = ++_reqId;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final r = await context.read<ApiClient>().get('/transactions', query: {..._query, 'cursor': _cursor});
+      final r = await context
+          .read<ApiClient>()
+          .get('/transactions', query: {..._query, 'cursor': reset ? null : _cursor});
       if (id != _reqId || !mounted) return;
       setState(() {
+        if (reset) {
+          _items.clear();
+          _totals = null;
+        }
         _items.addAll((r['items'] as List).map((e) => Tx.fromJson(Map<String, dynamic>.from(e))));
         _cursor = r['next_cursor'];
         _done = _cursor == null;
@@ -240,8 +243,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         );
                       }
                       final list = groups.values.elementAt(i);
-                      final inc = list.where((t) => t.isIncome).fold<int>(0, (s, t) => s + t.amount);
-                      final exp = list.where((t) => !t.isIncome).fold<int>(0, (s, t) => s + t.amount);
+                      // Tổng theo ngày không tính giao dịch hệ thống (số dư ban đầu, điều chỉnh) - khớp báo cáo.
+                      final real = list.where((t) => t.source != 'system');
+                      final inc = real.where((t) => t.isIncome).fold<int>(0, (s, t) => s + t.amount);
+                      final exp = real.where((t) => !t.isIncome).fold<int>(0, (s, t) => s + t.amount);
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Card(

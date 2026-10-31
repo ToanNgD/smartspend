@@ -99,6 +99,7 @@ class Session extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _enterReady() async {
+    obscured = false;
     if (tokens.accessToken == null) {
       final ok = await api.refresh();
       if (!ok) {
@@ -120,25 +121,29 @@ class Session extends ChangeNotifier with WidgetsBindingObserver {
     });
   }
 
+  void _setObscured(bool v) {
+    if (obscured == v) return;
+    obscured = v;
+    notifyListeners();
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.inactive:
+        // "inactive" cũng xảy ra khi hộp thoại vân tay/Face ID, hộp xin quyền hay thanh thông báo hiện lên.
+        // Không che trong các trường hợp đó (trước đây gây lỗi màn hình trắng sau khi quét vân tay).
+        // Android đã có FLAG_SECURE che nội dung trong màn hình đa nhiệm nên chỉ cần che ở iOS.
+        if (!Vault.authenticating && !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) _setObscured(true);
       case AppLifecycleState.hidden:
-        obscured = true;
-        notifyListeners();
       case AppLifecycleState.paused:
-        obscured = true;
         _backgroundAt ??= DateTime.now();
-        notifyListeners();
+        if (!Vault.authenticating) _setObscured(true);
       case AppLifecycleState.resumed:
-        obscured = false;
         final since = _backgroundAt;
         _backgroundAt = null;
-        if (since != null && DateTime.now().difference(since) > AppConfig.lockAfter) {
-          lockNow();
-        }
-        notifyListeners();
+        _setObscured(false);
+        if (since != null && DateTime.now().difference(since) > AppConfig.lockAfter) lockNow();
       case AppLifecycleState.detached:
         break;
     }

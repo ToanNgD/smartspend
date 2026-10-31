@@ -100,8 +100,9 @@ class TransactionRoutes {
     if (cursorSql.isEmpty) {
       p.remove('lim');
       totals = await c.db.one('''
-        SELECT COALESCE(sum(t.amount) FILTER (WHERE t.type = 'income'), 0)::bigint AS income,
-               COALESCE(sum(t.amount) FILTER (WHERE t.type = 'expense'), 0)::bigint AS expense,
+        -- Tổng thu/chi không tính giao dịch hệ thống (số dư ban đầu, điều chỉnh) - khớp với báo cáo.
+        SELECT COALESCE(sum(t.amount) FILTER (WHERE t.type = 'income' AND t.source <> 'system'), 0)::bigint AS income,
+               COALESCE(sum(t.amount) FILTER (WHERE t.type = 'expense' AND t.source <> 'system'), 0)::bigint AS expense,
                count(*)::int AS count
         FROM transactions t JOIN categories c ON c.id = t.category_id $where''', p);
     }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:cryptography/cryptography.dart' as cg;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -55,6 +56,15 @@ void main() {
     final d = TxDraft.fromJson({'type': 'income', 'amount': 15000000, 'category_id': null, 'occurred_at': '2026-10-29T05:00:00Z'});
     expect(d.categoryId, isNull);
     expect(d.amount, 15000000);
+  });
+
+  test('PBKDF2 tự viết cho kết quả giống chuẩn (tương thích PIN đã lưu)', () async {
+    final salt = List<int>.generate(16, (i) => i * 7);
+    final mine = pbkdf2Sha256([utf8.encode('135792'), salt, 1000]);
+    final ref = await (await cg.Pbkdf2(macAlgorithm: cg.Hmac.sha256(), iterations: 1000, bits: 256)
+            .deriveKey(secretKey: cg.SecretKey(utf8.encode('135792')), nonce: salt))
+        .extractBytes();
+    expect(mine, ref);
   });
 
   group('Vault (khóa ứng dụng)', () {

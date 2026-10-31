@@ -168,6 +168,9 @@ void main() {
       expect(s, 400, reason: 'không sửa trực tiếp số dư');
       (s, b) = await a.post('/wallets/$momo/adjust', {'balance': 450000});
       expect(b['balance'], 450000);
+      (s, b) = await a.get('/transactions');
+      expect(b['totals']['income'], 0, reason: 'số dư ban đầu không tính vào tổng thu');
+      expect(b['totals']['expense'], 0, reason: 'điều chỉnh số dư không tính vào tổng chi');
       (s, b) = await a.delete('/wallets/$momo');
       expect(s, 409, reason: 'ví đã có giao dịch');
       final cash = await cashWallet(a);

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart' as c;
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -25,8 +26,21 @@ class Vault {
   static const _kFails = 'pin_fails';
 
   final _aes = AesGcm.with256bits();
-  final _kdf = Pbkdf2(macAlgorithm: Hmac.sha256(), iterations: kIsWeb ? 20000 : 60000, bits: 256);
+  static const kdfIterations = kIsWeb ? 20000 : 60000;
   final _auth = LocalAuthentication();
+
+  /// true trong lúc hộp thoại vân tay/Face ID của hệ điều hành đang hiện
+  /// (để không che màn hình khi app tạm mất tiêu điểm vì hộp thoại này).
+  static bool authenticating = false;
+
+  Future<bool> _osAuth(String reason) async {
+    authenticating = true;
+    try {
+      return await _auth.authenticate(localizedReason: reason);
+    } finally {
+      authenticating = false;
+    }
+  }
 
   SecretKey? _dataKey;
   bool get isUnlocked => _dataKey != null;
@@ -49,7 +63,9 @@ class Vault {
     }
   }
 
-  Future<SecretKey> _derive(String pin, List<int> salt) => _kdf.deriveKey(secretKey: SecretKey(utf8.encode(pin)), nonce: salt);
+  /// PBKDF2-HMAC-SHA256 chạy trong isolate riêng để màn hình không bị đứng khi nhập PIN.
+  Future<SecretKey> _derive(String pin, List<int> salt) async =>
+      SecretKey(await compute(pbkdf2Sha256, [utf8.encode(pin), salt, kdfIterations]));
 
   /// Thiết lập (hoặc đổi) PIN. Khóa dữ liệu hiện tại giữ nguyên để không mất dữ liệu đệm.
   Future<void> setPin(String pin) async {
@@ -96,7 +112,7 @@ class Vault {
   Future<bool> unlockWithBiometric() async {
     if (!await biometricEnabled()) return false;
     try {
-      final ok = await _auth.authenticate(localizedReason: 'Xác thực để mở SmartSpend');
+      final ok = await _osAuth('Xác thực để mở SmartSpend');
       if (!ok) return false;
       final raw = await _s.read(key: _kBio);
       if (raw == null) return false;
@@ -118,7 +134,7 @@ class Vault {
       return true;
     }
     try {
-      final ok = await _auth.authenticate(localizedReason: 'Xác thực để bật mở khóa bằng sinh trắc học');
+      final ok = await _osAuth('Xác thực để bật mở khóa bằng sinh trắc học');
       if (!ok) return false;
     } catch (_) {
       return false;
@@ -174,4 +190,21 @@ class Vault {
     }
     return r == 0;
   }
+}
+
+/// PBKDF2-HMAC-SHA256 (RFC 8018), trả về khóa 32 byte. Tham số: [mật khẩu, salt, số vòng lặp].
+List<int> pbkdf2Sha256(List<Object> args) {
+  final password = args[0] as List<int>;
+  final salt = args[1] as List<int>;
+  final iterations = args[2] as int;
+  final hmac = c.Hmac(c.sha256, password);
+  var u = hmac.convert([...salt, 0, 0, 0, 1]).bytes;
+  final t = List<int>.from(u);
+  for (var i = 1; i < iterations; i++) {
+    u = hmac.convert(u).bytes;
+    for (var j = 0; j < t.length; j++) {
+      t[j] ^= u[j];
+    }
+  }
+  return t;
 }

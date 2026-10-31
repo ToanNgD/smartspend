@@ -6,6 +6,8 @@
 	<string>SmartSpend dùng camera để chụp món đồ hoặc hóa đơn đính kèm vào giao dịch.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>SmartSpend cần truy cập thư viện để bạn chọn ảnh đính kèm vào giao dịch.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>SmartSpend cần truy cập mạng cục bộ để kết nối máy chủ trong cùng mạng Wi-Fi.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>SmartSpend dùng Face ID để mở khóa ứng dụng.</string>
 	<key>NSAppTransportSecurity</key>

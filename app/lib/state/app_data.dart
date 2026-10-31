@@ -83,6 +83,17 @@ class AppData extends ChangeNotifier {
   /// Gọi sau mỗi thay đổi giao dịch: số dư, tổng quan và ngân sách do server tính lại.
   Future<void> afterTxChange() async {
     txVersion++;
+    await refreshSummary();
+  }
+
+  DateTime? _lastSummary;
+
+  /// Làm mới nhẹ (số dư, tổng quan, ngân sách, số cảnh báo) mà không bắt các danh sách tải lại.
+  /// Dùng khi quay lại app từ nền.
+  Future<void> refreshSummary({Duration? ifOlderThan}) async {
+    final last = _lastSummary;
+    if (ifOlderThan != null && last != null && DateTime.now().difference(last) < ifOlderThan) return;
+    _lastSummary = DateTime.now();
     try {
       final r = await Future.wait([api.get('/wallets'), api.get('/reports/overview'), api.get('/budgets')]);
       wallets = (r[0]['items'] as List).map((e) => Wallet.fromJson(e)).toList();

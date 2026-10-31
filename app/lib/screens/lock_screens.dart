@@ -127,9 +127,9 @@ class _LockScreenState extends State<LockScreen> {
       _error = false;
     });
     if (v.length < 6 || _busy) return;
-    _busy = true;
+    setState(() => _busy = true);
     final left = await context.read<Session>().unlockWithPin(v);
-    _busy = false;
+    if (mounted) setState(() => _busy = false);
     if (!mounted || left == null) return;
     HapticFeedback.heavyImpact();
     setState(() {
@@ -152,7 +152,12 @@ class _LockScreenState extends State<LockScreen> {
               Text('Nhập mã PIN', style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 6),
               Text(_msg ?? 'Để mở SmartSpend', style: TextStyle(color: _error ? context.expenseColor : context.muted)),
-              const SizedBox(height: 32),
+              SizedBox(
+                height: 32,
+                child: _busy
+                    ? const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)))
+                    : null,
+              ),
               PinPad(value: _pin, onChanged: _onChanged, error: _error, onBiometric: _bio ? _tryBio : null),
               const SizedBox(height: 16),
               TextButton(
@@ -178,7 +183,7 @@ class SetupLockScreen extends StatefulWidget {
 
 class _SetupLockScreenState extends State<SetupLockScreen> {
   String _first = '', _pin = '';
-  bool _confirming = false, _error = false, _bioAvailable = false, _bio = true;
+  bool _confirming = false, _error = false, _bioAvailable = false, _bio = true, _saving = false;
 
   @override
   void initState() {
@@ -218,12 +223,18 @@ class _SetupLockScreenState extends State<SetupLockScreen> {
       });
       return;
     }
+    if (_saving) return;
+    setState(() => _saving = true);
     final s = context.read<Session>();
-    if (widget.changeOnly) {
-      await s.vault.setPin(v);
-      if (mounted) Navigator.pop(context, true);
-    } else {
-      await s.completeLockSetup(v, biometric: _bioAvailable && _bio);
+    try {
+      if (widget.changeOnly) {
+        await s.vault.setPin(v);
+        if (mounted) Navigator.pop(context, true);
+      } else {
+        await s.completeLockSetup(v, biometric: _bioAvailable && _bio);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -247,7 +258,12 @@ class _SetupLockScreenState extends State<SetupLockScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 32),
                 child: Text(sub, textAlign: TextAlign.center, style: TextStyle(color: _error ? context.expenseColor : context.muted)),
               ),
-              const SizedBox(height: 28),
+              SizedBox(
+                height: 28,
+                child: _saving
+                    ? const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)))
+                    : null,
+              ),
               PinPad(value: _pin, onChanged: _onChanged, error: _error),
               if (_bioAvailable && !widget.changeOnly)
                 Padding(

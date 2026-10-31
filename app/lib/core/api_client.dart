@@ -27,8 +27,9 @@ class ApiClient {
   ApiClient(this.tokens)
       : dio = Dio(BaseOptions(
           baseUrl: AppConfig.apiUrl,
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 30),
+          // Server miễn phí trên cloud có thể mất vài chục giây để "thức dậy" sau thời gian không dùng.
+          connectTimeout: const Duration(seconds: 25),
+          receiveTimeout: const Duration(seconds: 60),
           contentType: 'application/json',
         )) {
     dio.interceptors.add(InterceptorsWrapper(
@@ -87,15 +88,26 @@ class ApiClient {
         throw ApiException(e.response!.statusCode ?? 0, '${err['code']}', '${err['message']}',
             err['details'] is Map ? Map<String, dynamic>.from(err['details'] as Map) : null);
       }
-      if (e.type == DioExceptionType.connectionError || e.type == DioExceptionType.connectionTimeout) {
+      if (e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
         throw ApiException(0, 'offline', 'Không kết nối được máy chủ. Kiểm tra mạng và thử lại.');
       }
       throw ApiException(e.response?.statusCode ?? 0, 'error', 'Có lỗi xảy ra, vui lòng thử lại.');
     }
   }
 
-  Future<dynamic> get(String path, {Map<String, dynamic>? query}) =>
-      _wrap(() => dio.get(path, queryParameters: query?..removeWhere((k, v) => v == null || v == '')));
+  /// GET tự thử lại 1 lần khi lỗi mạng (an toàn vì GET không thay đổi dữ liệu).
+  Future<dynamic> get(String path, {Map<String, dynamic>? query}) async {
+    final q = query?..removeWhere((k, v) => v == null || v == '');
+    try {
+      return await _wrap(() => dio.get(path, queryParameters: q));
+    } on ApiException catch (e) {
+      if (e.code != 'offline') rethrow;
+      await Future.delayed(const Duration(seconds: 2));
+      return _wrap(() => dio.get(path, queryParameters: q));
+    }
+  }
   Future<dynamic> post(String path, [Object? body]) => _wrap(() => dio.post(path, data: body ?? {}));
   Future<dynamic> patch(String path, Object body) => _wrap(() => dio.patch(path, data: body));
   Future<dynamic> delete(String path, {Object? body, Map<String, dynamic>? query}) =>

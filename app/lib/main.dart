@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -21,6 +22,13 @@ final messengerKey = GlobalKey<ScaffoldMessengerState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Bản phát hành: nếu một ô giao diện lỗi thì hiện thông báo nhỏ thay vì vùng trống.
+  if (kReleaseMode) {
+    ErrorWidget.builder = (details) => const Material(
+          color: Colors.transparent,
+          child: Center(child: Padding(padding: EdgeInsets.all(16), child: Text('Không hiển thị được nội dung này'))),
+        );
+  }
   await initializeDateFormatting('vi');
   final tokens = TokenStore();
   final api = ApiClient(tokens);
