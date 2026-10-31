@@ -43,19 +43,35 @@ Middleware accessLog() => (inner) => (req) async {
     };
 
 /// Gắn IP client vào context (dùng cho giới hạn đăng ký/đăng nhập).
-/// Khi chạy sau proxy của nhà cung cấp cloud (TRUST_PROXY=true), IP thật nằm trong X-Forwarded-For.
-/// Lấy phần tử CUỐI: đó là IP do proxy tự ghi thêm. Các phần tử phía trước do client tự gửi
-/// nên có thể bị giả để lách giới hạn tần suất.
 Middleware clientIp({bool trustProxy = false}) => (inner) => (req) {
       final info = req.context['shelf.io.connection_info'] as HttpConnectionInfo?;
-      var ip = info?.remoteAddress.address ?? 'unknown';
-      final fwd = req.headers['x-forwarded-for'];
-      if (trustProxy && fwd != null && fwd.isNotEmpty) {
-        final last = fwd.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).lastOrNull;
-        if (last != null) ip = last;
-      }
+      final ip = resolveClientIp(req.headers, info?.remoteAddress.address ?? 'unknown', trustProxy: trustProxy);
       return inner(req.change(context: {'clientIp': ip}));
     };
+
+/// Xác định IP thật của người dùng.
+///
+/// Trên Render, request đi qua Cloudflare rồi tới proxy của Render:
+/// - Cloudflare luôn tự ghi đè header `CF-Connecting-IP` / `True-Client-IP` bằng IP thật,
+///   người dùng không giả được -> ưu tiên dùng.
+/// - `X-Forwarded-For` có dạng `(do client tự gửi...), IP thật, IP Cloudflare`: phần đầu có thể
+///   bị giả, phần cuối là IP của Cloudflare (dùng chung cho rất nhiều người) -> nếu phải dùng
+///   thì lấy phần tử áp chót.
+/// Khi không chạy sau proxy (TRUST_PROXY=false) thì bỏ qua mọi header, dùng IP kết nối trực tiếp.
+String resolveClientIp(Map<String, String> headers, String remote, {required bool trustProxy}) {
+  if (!trustProxy) return remote;
+  String? valid(String? v) {
+    final s = v?.trim();
+    return (s != null && s.isNotEmpty && InternetAddress.tryParse(s) != null) ? s : null;
+  }
+
+  final cf = valid(headers['cf-connecting-ip']) ?? valid(headers['true-client-ip']);
+  if (cf != null) return cf;
+  final parts = (headers['x-forwarded-for'] ?? '').split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+  if (parts.length >= 2) return valid(parts[parts.length - 2]) ?? remote;
+  if (parts.length == 1) return valid(parts.first) ?? remote;
+  return remote;
+}
 
 Middleware securityHeaders() => (inner) => (req) async {
       final res = await inner(req);
