@@ -3,3 +3,6 @@
 storage/
 *.json.key
 service-account*.json
+
+# Khóa dịch vụ Firebase - tuyệt đối không đưa lên git
+*firebase-adminsdk*.json

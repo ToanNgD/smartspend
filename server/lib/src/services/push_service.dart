@@ -23,7 +23,11 @@ class PushService {
     if (_client != null) return _client;
     if (!enabled) return null;
     try {
-      final json = jsonDecode(await File(serviceAccountPath).readAsString()) as Map<String, dynamic>;
+      // Nhận nội dung JSON trực tiếp hoặc đường dẫn tới file JSON.
+      final raw = serviceAccountPath.trim().startsWith('{')
+          ? serviceAccountPath
+          : await File(serviceAccountPath).readAsString();
+      final json = jsonDecode(raw) as Map<String, dynamic>;
       _projectId = json['project_id'] as String;
       _client = await clientViaServiceAccount(ServiceAccountCredentials.fromJson(json),
           ['https://www.googleapis.com/auth/firebase.messaging']);
@@ -53,7 +57,10 @@ class PushService {
               'token': token,
               'notification': {'title': title, 'body': body},
               'data': data,
-              'android': {'priority': 'high'},
+              'android': {
+                'priority': 'high',
+                'notification': {'channel_id': 'smartspend_alerts', 'color': '#1C6B52'},
+              },
             }
           }),
         ).timeout(const Duration(seconds: 10));

@@ -4,3 +4,6 @@ server/storage/
 server/service-account*.json
 **/.dart_tool/
 **/build/
+
+# Khóa dịch vụ Firebase - tuyệt đối không đưa lên git
+*firebase-adminsdk*.json

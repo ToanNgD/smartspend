@@ -38,7 +38,7 @@ Future<void> main() async {
   final session = Session(tokens: tokens, api: api, vault: vault, cache: cache, push: push);
   final data = AppData(api, cache);
 
-  push.onOpen = (d) => session.pendingLink = d;
+  push.onOpen = session.openLink;
   push.onForeground = (title, body, d) => messengerKey.currentState?.showSnackBar(SnackBar(
         content: Text('$title\n$body'),
         duration: const Duration(seconds: 6),

@@ -33,6 +33,12 @@ class Session extends ChangeNotifier with WidgetsBindingObserver {
   DateTime? _backgroundAt;
   bool _loggingOut = false;
 
+  /// Bấm vào thông báo: ghi nhớ màn hình đích; app mở màn hình đó ngay nếu đang mở khóa, hoặc sau khi xác thực.
+  void openLink(Map<String, dynamic> data) {
+    pendingLink = data;
+    notifyListeners();
+  }
+
   void _set(SessionStatus s) {
     status = s;
     notifyListeners();

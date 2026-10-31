@@ -27,10 +27,9 @@ class PushService {
     if (kIsWeb) return false;
     try {
       final opts = DefaultFirebaseOptions.currentPlatform;
-      if (Firebase.apps.isEmpty) {
-        // ignore: unnecessary_null_comparison
-        opts == null ? await Firebase.initializeApp() : await Firebase.initializeApp(options: opts);
-      }
+      // Chưa cấu hình Firebase cho nền tảng này (chưa chạy tool/firebase_setup.dart, hoặc iPhone) -> bỏ qua.
+      if (opts == null) return false;
+      if (Firebase.apps.isEmpty) await Firebase.initializeApp(options: opts);
       _ready = true;
     } catch (_) {
       _ready = false; // chưa cấu hình Firebase -> bỏ qua thông báo đẩy

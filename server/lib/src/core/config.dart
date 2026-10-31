@@ -60,6 +60,7 @@ class Config {
   bool get aiEnabled => geminiApiKey.isNotEmpty;
   bool get pushEnabled => fcmServiceAccount.isNotEmpty;
 
+
   factory Config.load({Map<String, String>? overrides}) {
     final env = DotEnv(includePlatformEnvironment: true, quiet: true);
     if (File('.env').existsSync()) env.load(['.env']);
@@ -127,7 +128,10 @@ class Config {
       geminiModel: get('GEMINI_MODEL', 'gemini-3.6-flash'),
       aiParsePerDay: getInt('AI_PARSE_PER_DAY', 50),
       aiAnalyzePerDay: getInt('AI_ANALYZE_PER_DAY', 3),
-      fcmServiceAccount: get('FCM_SERVICE_ACCOUNT'),
+      // FCM_SERVICE_ACCOUNT_JSON: dán nguyên nội dung file JSON (tiện trên Render); FCM_SERVICE_ACCOUNT: đường dẫn file.
+      fcmServiceAccount: get('FCM_SERVICE_ACCOUNT_JSON').trim().startsWith('{')
+          ? get('FCM_SERVICE_ACCOUNT_JSON').trim()
+          : get('FCM_SERVICE_ACCOUNT'),
       enableScheduler: getBool('ENABLE_SCHEDULER', true),
       registerPerHour: getInt('REGISTER_PER_IP_PER_HOUR', 5),
       requestsPerMinute: getInt('REQUESTS_PER_MINUTE', 120),
