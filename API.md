@@ -44,7 +44,7 @@ Khi có lỗi, server trả về dạng: `{"error": {"code": "...", "message": "
 | GET | /categories?include_hidden=true | Danh sách danh mục. |
 | POST | /categories | `{name, type, icon?, color?}`. Tên không trùng trong cùng loại. |
 | PATCH | /categories/:id | `{name?, icon?, color?, is_hidden?}`. Danh mục mặc định chỉ được đổi `is_hidden`. |
-| DELETE | /categories/:id?move_to=:id2 | Nếu danh mục đang có giao dịch thì bắt buộc gửi `move_to` (danh mục cùng loại) để chuyển giao dịch sang. |
+| DELETE | /categories/:id?move_to=:id2 | Nếu danh mục đang có giao dịch thì bắt buộc gửi `move_to` (danh mục cùng loại) để chuyển giao dịch sang. Giao dịch đã xóa (không còn hiển thị) được chuyển theo; nếu chỉ còn loại này thì chuyển sang "Chi khác"/"Thu khác" mà không cần `move_to`. |
 
 ## Giao dịch (UC06, UC07, UC08)
 | Phương thức | Đường dẫn | Mô tả |
@@ -80,7 +80,7 @@ Khi có lỗi, server trả về dạng: `{"error": {"code": "...", "message": "
 |---|---|---|
 | POST | /ai/parse | `{text}` (tối đa 300 ký tự) trả về `{engine, items: [bản xem trước], remaining_today}`. API không tự lưu giao dịch. |
 | GET | /ai/insights | Các thẻ gợi ý gần nhất (lấy từ cache). |
-| POST | /ai/insights/analyze | Phân tích ngay. Mỗi ngày được gọi giới hạn số lần (`AI_ANALYZE_PER_DAY`). |
+| POST | /ai/insights/analyze | Phân tích ngay. Mỗi ngày được gọi giới hạn số lần (`AI_ANALYZE_PER_DAY`). Tháng hiện tại chưa có khoản chi nào thì trả 400 `not_enough_data`, không trừ lượt và giữ nguyên thẻ cũ. |
 | PATCH | /ai/insights/:id | `{status: acted/dismissed}` |
 | GET | /ai/forecast | Dự báo cuối kỳ cho từng ngân sách. Cần ít nhất 2 tuần dữ liệu. |
 

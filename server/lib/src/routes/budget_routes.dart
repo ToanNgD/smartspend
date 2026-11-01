@@ -54,8 +54,8 @@ class BudgetRoutes {
       await audit(s, req.userId, 'budget', id, 'create');
       return id;
     });
-    // Tạo ngân sách khi đã chi quá ngưỡng thì cảnh báo ngay.
-    await c.alerts.checkBudgets(req.userId);
+    // Tạo ngân sách khi đã chi quá ngưỡng thì cảnh báo ngay (nếu người dùng đang bật cảnh báo ngân sách).
+    await c.alerts.afterBudgetChange(req.userId);
     final items = await budgetsWithUsage(c.db.pool, req.userId, budgetId: id);
     return jsonOk((await _withNames(req.userId, items)).first, status: 201);
   }
@@ -89,7 +89,7 @@ class BudgetRoutes {
           {'n': name, 'l': limit, 'id': id, 'u': req.userId});
       if (changed.isNotEmpty) await audit(s, req.userId, 'budget', id, 'update', changed);
     });
-    await c.alerts.checkBudgets(req.userId);
+    await c.alerts.afterBudgetChange(req.userId);
     return _get(req, id);
   }
 

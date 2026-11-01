@@ -30,7 +30,7 @@ class AiRoutes {
     final rows = await c.db.q(
         'SELECT id, period_start, period_end, kind, title, content, action, status, trigger_type, created_at '
         'FROM ai_insights WHERE user_id = @u AND created_at = (SELECT max(created_at) FROM ai_insights WHERE user_id = @u) '
-        'ORDER BY id',
+        "ORDER BY CASE kind WHEN 'trend' THEN 0 WHEN 'habit' THEN 1 ELSE 2 END, id",
         {'u': req.userId});
     final usage = await c.db.one(
         "SELECT coalesce(sum(call_count), 0)::int AS n FROM ai_usage WHERE user_id = @u AND feature = 'analyze' "

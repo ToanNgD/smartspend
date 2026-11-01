@@ -49,7 +49,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (c) => const _PinVerifySheet(),
     );
     if (ok != true && await s.vault.failedAttempts() >= AppConfig.maxPinAttempts) {
-      await s.logout(message: 'Bạn đã nhập sai PIN quá 5 lần. Vui lòng đăng nhập lại bằng mật khẩu.');
+      await s.logout(message: 'Bạn đã nhập sai PIN 5 lần. Vui lòng đăng nhập lại bằng mật khẩu.');
     }
     return ok == true;
   }

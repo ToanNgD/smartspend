@@ -74,14 +74,22 @@ class _AiScreenState extends State<AiScreen> {
       ),
     );
     if (ok == true && mounted) {
-      await context.read<ApiClient>().patch('/ai/insights/${i.id}', {'status': 'acted'});
-      _load();
+      try {
+        await context.read<ApiClient>().patch('/ai/insights/${i.id}', {'status': 'acted'});
+        _load();
+      } catch (e) {
+        if (mounted) showError(context, e);
+      }
     }
   }
 
   Future<void> _dismiss(Insight i) async {
-    await context.read<ApiClient>().patch('/ai/insights/${i.id}', {'status': 'dismissed'});
-    _load();
+    try {
+      await context.read<ApiClient>().patch('/ai/insights/${i.id}', {'status': 'dismissed'});
+      _load();
+    } catch (e) {
+      if (mounted) showError(context, e);
+    }
   }
 
   @override

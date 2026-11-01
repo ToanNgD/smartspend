@@ -90,7 +90,7 @@ class Session extends ChangeNotifier with WidgetsBindingObserver {
     }
     final left = AppConfig.maxPinAttempts - await vault.failedAttempts();
     if (left <= 0) {
-      await logout(message: 'Bạn đã nhập sai PIN quá 5 lần. Vui lòng đăng nhập lại bằng mật khẩu.');
+      await logout(message: 'Bạn đã nhập sai PIN 5 lần. Vui lòng đăng nhập lại bằng mật khẩu.');
       return 0;
     }
     return left;

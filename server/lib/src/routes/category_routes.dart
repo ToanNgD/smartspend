@@ -103,19 +103,39 @@ class CategoryRoutes {
       if (cur['is_default'] == true) {
         throw ApiError.badRequest('Danh mục mặc định chỉ được ẩn, không xóa', 'default_category');
       }
+      // Chỉ tính giao dịch đang hiển thị (khớp tx_count app thấy); giao dịch đã xóa mềm vẫn phải chuyển đi vì còn khóa ngoại.
       final used = await s.row(
-          'SELECT count(*)::int AS n FROM transactions WHERE category_id = @id AND user_id = @u', {'id': id, 'u': req.userId});
+          'SELECT count(*) FILTER (WHERE deleted_at IS NULL)::int AS n, count(*)::int AS total '
+          'FROM transactions WHERE category_id = @id AND user_id = @u',
+          {'id': id, 'u': req.userId});
       final n = used!['n'] as int;
-      if (n > 0) {
-        if (moveTo == null) {
-          throw ApiError(409, 'category_in_use', 'Danh mục đang có giao dịch, hãy chọn danh mục để chuyển sang',
-              {'transaction_count': n});
-        }
+      final total = used['total'] as int;
+      if (n > 0 && moveTo == null) {
+        throw ApiError(409, 'category_in_use', 'Danh mục đang có giao dịch, hãy chọn danh mục để chuyển sang',
+            {'transaction_count': n});
+      }
+      String? target;
+      if (moveTo != null) {
         if (moveTo == id) throw ApiError.badRequest('Danh mục chuyển sang phải khác danh mục bị xóa');
-        final target = await _own(s, req.userId, moveTo);
-        if (target['type'] != cur['type']) throw ApiError.badRequest('Danh mục chuyển sang phải cùng loại thu/chi');
+        final t = await _own(s, req.userId, moveTo);
+        if (t['type'] != cur['type']) throw ApiError.badRequest('Danh mục chuyển sang phải cùng loại thu/chi');
+        target = moveTo;
+      } else if (total > 0) {
+        // Chỉ còn giao dịch đã xóa: chuyển sang danh mục mặc định "Chi khác"/"Thu khác" cùng loại.
+        final def = await s.row(
+            'SELECT id FROM categories WHERE user_id = @u AND type = @t AND is_default '
+            "AND name = CASE WHEN @t = 'income' THEN 'Thu khác' ELSE 'Chi khác' END",
+            {'u': req.userId, 't': cur['type']});
+        target = (def ??
+            await s.row(
+                'SELECT id FROM categories WHERE user_id = @u AND type = @t AND id <> @id '
+                'ORDER BY is_default DESC, created_at LIMIT 1',
+                {'u': req.userId, 't': cur['type'], 'id': id}))?['id'] as String?;
+        if (target == null) throw ApiError.badRequest('Không còn danh mục cùng loại để chuyển giao dịch cũ sang');
+      }
+      if (target != null && total > 0) {
         await s.run('UPDATE transactions SET category_id = @to WHERE category_id = @id AND user_id = @u',
-            {'to': moveTo, 'id': id, 'u': req.userId});
+            {'to': target, 'id': id, 'u': req.userId});
       }
       // Ngân sách theo danh mục: chuyển phạm vi sang danh mục mới (bỏ trùng).
       if (moveTo != null) {

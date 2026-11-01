@@ -66,30 +66,8 @@ class _WalletTile extends StatelessWidget {
         case 'unarchive':
           await api.post('/wallets/${w.id}/unarchive');
         case 'adjust':
-          final ctl = TextEditingController();
-          final ok = await showDialog<bool>(
-            context: context,
-            builder: (c) => AlertDialog(
-              title: const Text('Điều chỉnh số dư'),
-              content: Column(mainAxisSize: MainAxisSize.min, children: [
-                Text('Số dư hiện tại: ${vnd(w.balance)}. Nhập số dư thực tế, app sẽ tạo một giao dịch điều chỉnh.'),
-                const SizedBox(height: 12),
-                TextField(
-                    controller: ctl,
-                    autofocus: true,
-                    keyboardType: moneyKeyboard,
-                    textInputAction: TextInputAction.done,
-                    inputFormatters: [MoneyInputFormatter()],
-                    decoration: const InputDecoration(labelText: 'Số dư thực tế', suffixText: 'đ')),
-              ]),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Hủy')),
-                FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Điều chỉnh')),
-              ],
-            ),
-          );
-          final v = parseMoney(ctl.text);
-          if (ok == true && v != null) {
+          final v = await showDialog<int>(context: context, builder: (_) => _AdjustDialog(w: w));
+          if (v != null) {
             await api.post('/wallets/${w.id}/adjust', {'balance': v});
             await data.afterTxChange();
           }
@@ -127,6 +105,44 @@ class _WalletTile extends StatelessWidget {
           ),
         ]),
         onTap: () => _action(context, 'history'),
+      );
+}
+
+/// Hộp thoại điều chỉnh số dư; trả về số dư thực tế người dùng nhập (hoặc null nếu hủy).
+class _AdjustDialog extends StatefulWidget {
+  final Wallet w;
+  const _AdjustDialog({required this.w});
+  @override
+  State<_AdjustDialog> createState() => _AdjustDialogState();
+}
+
+class _AdjustDialogState extends State<_AdjustDialog> {
+  final _ctl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Điều chỉnh số dư'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('Số dư hiện tại: ${vnd(widget.w.balance)}. Nhập số dư thực tế, app sẽ tạo một giao dịch điều chỉnh.'),
+          const SizedBox(height: 12),
+          TextField(
+              controller: _ctl,
+              autofocus: true,
+              keyboardType: moneyKeyboard,
+              textInputAction: TextInputAction.done,
+              inputFormatters: [MoneyInputFormatter()],
+              decoration: const InputDecoration(labelText: 'Số dư thực tế', suffixText: 'đ')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+          FilledButton(onPressed: () => Navigator.pop(context, parseMoney(_ctl.text)), child: const Text('Điều chỉnh')),
+        ],
       );
 }
 

@@ -443,9 +443,17 @@ QUY TẮC:
   }
 
   Future<List<Map<String, dynamic>>> analyze(String userId, {required bool manual}) async {
-    if (manual) await consume(userId, 'analyze', config.aiAnalyzePerDay);
     final weekly = !manual;
     final agg = await aggregate(userId, weekly: weekly);
+    if (manual) {
+      // Chưa có khoản chi nào trong tháng (vd mấy ngày đầu tháng): không trừ lượt, giữ nguyên thẻ gợi ý cũ.
+      if ((agg['total_expense'] as int) == 0) {
+        throw ApiError.badRequest(
+            'Tháng này chưa có khoản chi nào nên chưa phân tích được. Hãy ghi thêm vài khoản chi rồi thử lại.',
+            'not_enough_data');
+      }
+      await consume(userId, 'analyze', config.aiAnalyzePerDay);
+    }
     final expenseCats = await db.q(
         "SELECT name FROM categories WHERE user_id = @u AND type = 'expense'", {'u': userId});
     final catNames = expenseCats.map((c) => fold(c['name'] as String)).toSet();
@@ -502,8 +510,11 @@ QUY TẮC:
       }
       return rows;
     });
-    return saved;
+    return saved..sort((a, b) => kindOrder(a['kind']).compareTo(kindOrder(b['kind'])));
   }
+
+  /// Thứ tự hiển thị thẻ: Xu hướng, Thói quen, Tiết kiệm.
+  static int kindOrder(Object? kind) => switch (kind) { 'trend' => 0, 'habit' => 1, _ => 2 };
 
   static Map<String, dynamic> insightJson(Map<String, dynamic> r) => {
         'id': r['id'],

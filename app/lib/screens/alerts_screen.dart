@@ -69,8 +69,12 @@ class _AlertsScreenState extends State<AlertsScreen> {
         appBar: AppBar(title: const Text('Cảnh báo'), actions: [
           TextButton(
             onPressed: () async {
-              await context.read<ApiClient>().post('/alerts/read-all');
-              _load();
+              try {
+                await context.read<ApiClient>().post('/alerts/read-all');
+                _load();
+              } catch (e) {
+                if (context.mounted) showError(context, e);
+              }
             },
             child: const Text('Đọc hết'),
           ),

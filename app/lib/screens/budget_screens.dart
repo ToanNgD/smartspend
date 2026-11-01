@@ -56,6 +56,7 @@ class BudgetCard extends StatelessWidget {
               Text(over ? 'Vượt ' : 'Còn lại ', style: TextStyle(color: context.muted, fontSize: 12.5)),
               Money(b.remaining.abs(),
                   style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: over ? context.expenseColor : null)),
+              const SizedBox(width: 8),
               const Spacer(),
               Text('${b.daysLeft} ngày · tối đa ', style: TextStyle(color: context.muted, fontSize: 12.5)),
               Money(b.dailyAllowance, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
@@ -145,28 +146,90 @@ class BudgetDetailScreen extends StatelessWidget {
         BudgetCard(b: b),
         _ForecastLine(budgetId: b.id),
         const SectionTitle('Khoản chi trong kỳ'),
-        Fetch(
-          path: '/transactions',
-          query: {
-            'type': 'expense',
-            'from': (b.raw['period_start'] as String?),
-            'to': (b.raw['period_end'] as String?),
-            if (b.scope == 'categories' && b.categoryIds.length == 1) 'category_id': b.categoryIds.first,
-            'limit': '50',
-          },
-          builder: (c, data) {
-            var items = (data['items'] as List).map((e) => Tx.fromJson(Map<String, dynamic>.from(e))).toList();
-            if (b.scope == 'categories') items = items.where((t) => b.categoryIds.contains(t.categoryId)).toList();
-            items = items.where((t) => t.source != 'system').toList();
-            if (items.isEmpty) return const Card(child: EmptyState(icon: Icons.receipt_long, title: 'Chưa có khoản chi nào trong kỳ'));
-            return Card(
-              child: Column(children: [
-                for (final t in items)
-                  TxTile(tx: t, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TxDetailScreen(id: t.id)))),
-              ]),
-            );
-          },
-        ),
+        _BudgetTxList(b: b),
+      ]),
+    );
+  }
+}
+
+/// Các khoản chi trong kỳ của ngân sách. Tải lần lượt từng trang (50 giao dịch/trang) cho đến hết kỳ,
+/// tối đa 500 khoản để không tải quá nhiều.
+class _BudgetTxList extends StatefulWidget {
+  final Budget b;
+  const _BudgetTxList({required this.b});
+  @override
+  State<_BudgetTxList> createState() => _BudgetTxListState();
+}
+
+class _BudgetTxListState extends State<_BudgetTxList> {
+  static const _max = 500;
+  List<Tx>? _items;
+  bool _more = false;
+  Object? _error;
+  String _sig = '';
+
+  Future<void> _load() async {
+    final b = widget.b;
+    final api = context.read<ApiClient>();
+    try {
+      final all = <Tx>[];
+      String? cursor;
+      do {
+        final r = await api.get('/transactions', query: {
+          'type': 'expense',
+          'from': b.raw['period_start'] as String?,
+          'to': b.raw['period_end'] as String?,
+          if (b.scope == 'categories' && b.categoryIds.length == 1) 'category_id': b.categoryIds.first,
+          'limit': '50',
+          'cursor': cursor,
+        });
+        all.addAll((r['items'] as List).map((e) => Tx.fromJson(Map<String, dynamic>.from(e))));
+        cursor = r['next_cursor'] as String?;
+      } while (cursor != null && all.length < _max);
+      var items = all.where((t) => t.source != 'system').toList();
+      if (b.scope == 'categories') items = items.where((t) => b.categoryIds.contains(t.categoryId)).toList();
+      if (!mounted) return;
+      setState(() {
+        _items = items;
+        _more = cursor != null;
+        _error = null;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _error = e);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final v = context.select<AppData, int>((d) => d.txVersion);
+    final sig = '${widget.b.id}|${widget.b.raw['period_start']}|${widget.b.categoryIds.join(',')}|$v';
+    if (sig != _sig) {
+      _sig = sig;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    }
+    if (_error != null && _items == null) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(children: [
+          const Icon(Icons.error_outline),
+          const SizedBox(width: 8),
+          Expanded(child: Text(_error.toString())),
+          TextButton(onPressed: _load, child: const Text('Thử lại')),
+        ]),
+      );
+    }
+    final items = _items;
+    if (items == null) return const SizedBox(height: 120, child: Center(child: CircularProgressIndicator()));
+    if (items.isEmpty) return const Card(child: EmptyState(icon: Icons.receipt_long, title: 'Chưa có khoản chi nào trong kỳ'));
+    return Card(
+      child: Column(children: [
+        for (final t in items)
+          TxTile(tx: t, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TxDetailScreen(id: t.id)))),
+        if (_more)
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text('Chỉ hiện $_max khoản chi gần nhất của kỳ.', style: TextStyle(color: context.muted, fontSize: 12.5)),
+          ),
       ]),
     );
   }

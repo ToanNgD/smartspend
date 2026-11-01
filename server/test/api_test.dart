@@ -217,6 +217,19 @@ void main() {
       (s, b) = await a.delete('/categories/$cafe?move_to=${other['id']}');
       expect(s, 200);
       expect(b['moved_transactions'], 1);
+
+      // Danh mục chỉ còn giao dịch đã xóa: app thấy 0 giao dịch, xóa thẳng được;
+      // giao dịch đã xóa được chuyển sang "Chi khác" để không mất dữ liệu.
+      (s, b) = await a.post('/categories', {'name': 'Tạm', 'type': 'expense'});
+      final tmp = b['id'];
+      final t = await addTx(a, wallet: w['id'], cat: tmp, amount: 10000);
+      await a.delete('/transactions/${t['id']}');
+      (s, b) = await a.get('/categories');
+      expect((b['items'] as List).firstWhere((c) => c['id'] == tmp)['tx_count'], 0);
+      (s, b) = await a.delete('/categories/$tmp');
+      expect(s, 200, reason: '$b');
+      (s, b) = await a.post('/transactions/${t['id']}/restore');
+      expect(b['category_id'], other['id']);
     });
   });
 
@@ -422,6 +435,9 @@ void main() {
       final food = await catByName(a, 'Ăn uống');
       await a.post('/budgets', {'name': 'T', 'amount_limit': 100000, 'period': 'month'});
       await addTx(a, wallet: w['id'], cat: food['id'], amount: 200000);
+      // Tạo thêm / sửa ngân sách khi đã vượt ngưỡng cũng không được cảnh báo.
+      final (_, nb) = await a.post('/budgets', {'name': 'T2', 'amount_limit': 50000, 'period': 'week'});
+      await a.patch('/budgets/${nb['id']}', {'amount_limit': 60000});
       final (_, al) = await a.get('/alerts');
       expect((al['items'] as List), isEmpty);
     });
@@ -481,7 +497,7 @@ void main() {
       final food = await catByName(a, 'Ăn uống');
       for (var i = 0; i < 6; i++) {
         await addTx(a, wallet: w['id'], cat: food['id'], amount: 40000 + i * 1000,
-            at: DateTime.now().subtract(Duration(hours: i)));
+            at: DateTime.now().subtract(Duration(minutes: i)));
       }
       var (s, b) = await a.post('/ai/insights/analyze');
       expect(s, 200, reason: '$b');
@@ -491,12 +507,30 @@ void main() {
       expect(saving['action']['type'], 'set_budget');
       (s, b) = await a.get('/ai/insights');
       expect((b['items'] as List).length, items.length);
+      // Thứ tự thẻ cố định: Xu hướng, Thói quen, Tiết kiệm.
+      const order = {'trend': 0, 'habit': 1, 'saving': 2};
+      final kinds = (b['items'] as List).map((x) => order[x['kind']]!).toList();
+      expect(kinds, [...kinds]..sort());
       (s, _) = await a.patch('/ai/insights/${saving['id']}', {'status': 'acted'});
       expect(s, 204);
       await a.post('/ai/insights/analyze');
       await a.post('/ai/insights/analyze');
       (s, b) = await a.post('/ai/insights/analyze');
       expect(s, 429);
+    });
+  });
+
+  group('6.2 Phân tích khi chưa có khoản chi', () {
+    test('chưa có khoản chi trong tháng: báo chưa đủ dữ liệu, không trừ lượt', () async {
+      final a = await Api.register();
+      var (s, b) = await a.get('/ai/insights');
+      final before = b['manual_remaining_today'];
+      (s, b) = await a.post('/ai/insights/analyze');
+      expect(s, 400);
+      expect(b['error']['code'], 'not_enough_data');
+      (s, b) = await a.get('/ai/insights');
+      expect(b['manual_remaining_today'], before);
+      expect(b['items'], isEmpty);
     });
   });
 

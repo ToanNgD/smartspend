@@ -61,6 +61,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _search.dispose();
     _scroll.dispose();
     super.dispose();
   }

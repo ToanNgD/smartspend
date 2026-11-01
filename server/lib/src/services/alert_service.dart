@@ -39,6 +39,16 @@ class AlertService {
     }
   }
 
+  /// Gọi sau khi tạo/sửa ngân sách: chỉ kiểm tra ngưỡng khi người dùng đang bật cảnh báo ngân sách.
+  Future<void> afterBudgetChange(String userId) async {
+    try {
+      final st = await db.one('SELECT budget_alerts_enabled FROM user_settings WHERE user_id = @u', {'u': userId});
+      if (st?['budget_alerts_enabled'] == true) await checkBudgets(userId);
+    } catch (e) {
+      stderr.writeln('[alerts] lỗi kiểm tra cảnh báo: ${e.runtimeType}');
+    }
+  }
+
   Future<void> checkBudgets(String userId, {String? categoryId}) async {
     final budgets = await budgetsWithUsage(db.pool, userId, categoryId: categoryId);
     for (final b in budgets) {
