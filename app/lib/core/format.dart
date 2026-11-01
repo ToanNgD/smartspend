@@ -34,6 +34,8 @@ const _weekdays = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ S�
 String fmtDate(DateTime d) => _dayFmt.format(d.toLocal());
 String fmtTime(DateTime d) => _timeFmt.format(d.toLocal());
 String fmtDateTime(DateTime d) => '${fmtTime(d)} · ${fmtDate(d)}';
+String fmtDayMonth(DateTime d) => _dayMonthFmt.format(d.toLocal());
+final _dayMonthFmt = DateFormat('dd/MM');
 
 /// "Hôm nay", "Hôm qua", "Thứ Tư, 28/10/2026"
 String dayHeader(DateTime d) {

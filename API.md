@@ -89,5 +89,5 @@ Khi có lỗi, server trả về dạng: `{"error": {"code": "...", "message": "
 |---|---|---|
 | GET | /reports/overview | Dữ liệu màn hình chính. |
 | GET | /reports/summary | Tham số: `period` (week/month/year/custom), `offset`, `from`, `to`, `wallet_id`. Trả về thu, chi, chênh lệch và so sánh với kỳ trước. Nếu kỳ chưa kết thúc thì so với cùng số ngày của kỳ trước. |
-| GET | /reports/categories | Thêm tham số `type`. Danh mục chiếm dưới 3% được gộp vào "Khác". |
+| GET | /reports/categories | Thêm tham số `type`. Danh mục chiếm dưới 3% được gộp vào "Khác". `from`, `to` là ngày đầu và ngày cuối của kỳ (tính giống `/reports/summary`). |
 | GET | /reports/trend | Thêm tham số `group` (day/week/month). |

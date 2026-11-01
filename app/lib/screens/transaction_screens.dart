@@ -21,9 +21,19 @@ import 'tx_form_screen.dart';
 class TransactionsScreen extends StatefulWidget {
   final String? initialCategoryId;
   final String? initialWalletId;
+  /// Lọc sẵn loại (income/expense) và khoảng ngày - dùng khi mở từ báo cáo để chỉ hiện giao dịch cấu thành.
+  final String? initialType;
+  final DateTimeRange? initialRange;
   final String? title;
   final bool standalone;
-  const TransactionsScreen({super.key, this.initialCategoryId, this.initialWalletId, this.title, this.standalone = false});
+  const TransactionsScreen(
+      {super.key,
+      this.initialCategoryId,
+      this.initialWalletId,
+      this.initialType,
+      this.initialRange,
+      this.title,
+      this.standalone = false});
   @override
   State<TransactionsScreen> createState() => _TransactionsScreenState();
 }
@@ -53,6 +63,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     super.initState();
     _filter.categoryId = widget.initialCategoryId;
     _filter.walletId = widget.initialWalletId;
+    _filter.type = widget.initialType;
+    _filter.range = widget.initialRange;
     _scroll.addListener(() {
       if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 300) _more();
     });
@@ -322,8 +334,13 @@ class _FilterSheetState extends State<_FilterSheet> {
           label: Text(f.range == null ? 'Chọn khoảng ngày' : '${fmtDate(f.range!.start)} – ${fmtDate(f.range!.end)}'),
           onPressed: () async {
             final now = DateTime.now();
+            final first = DateTime(now.year - 5);
+            final init = f.range;
             final r = await showDateRangePicker(
-                context: context, firstDate: DateTime(now.year - 5), lastDate: now, initialDateRange: f.range);
+                context: context,
+                firstDate: first,
+                lastDate: now,
+                initialDateRange: init != null && !init.start.isBefore(first) && !init.end.isAfter(now) ? init : null);
             if (r != null) setState(() => f.range = r);
           },
         ),
@@ -428,8 +445,19 @@ class _TxDetailScreenState extends State<TxDetailScreen> {
         ),
       ));
     } catch (e) {
-      if (mounted) showError(context, e);
+      if (!mounted) return;
+      // Chưa có dữ liệu (lần tải đầu) thì báo lỗi tại chỗ kèm nút Thử lại; đang có dữ liệu thì chỉ báo nhanh.
+      if (_tx == null) {
+        setState(() => _error = e);
+      } else {
+        showError(context, e);
+      }
     }
+  }
+
+  void _retry() {
+    setState(() => _error = null);
+    _load();
   }
 
   Future<void> _addPhoto() async {
@@ -489,7 +517,13 @@ class _TxDetailScreenState extends State<TxDetailScreen> {
         if (t != null) IconButton(tooltip: 'Xóa', icon: const Icon(Icons.delete_outline), onPressed: _delete),
       ]),
       body: t == null
-          ? Center(child: _error != null ? Text(_error.toString()) : const CircularProgressIndicator())
+          ? Center(
+              child: _error != null
+                  ? EmptyState(
+                      icon: Icons.cloud_off,
+                      title: _error.toString(),
+                      action: OutlinedButton(onPressed: _retry, child: const Text('Thử lại')))
+                  : const CircularProgressIndicator())
           : ListView(padding: const EdgeInsets.all(16), children: [
               Card(
                 child: Padding(

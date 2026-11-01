@@ -210,6 +210,7 @@ class _Recent extends StatelessWidget {
         for (final t in items)
           TxTile(
             tx: t,
+            showDate: true,
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TxDetailScreen(id: t.id))),
           ),
       ]),

@@ -57,14 +57,17 @@ class _CategoryReportCardState extends State<CategoryReportCard> {
                 ('Khác', (other['amount'] as num).toInt(), (other['percent'] as num).toDouble(), Colors.grey, 'dots', null),
             ];
             final shown = widget.compact ? slices.take(4).toList() : slices;
-            // Bấm một mục: danh mục thật thì mở giao dịch của danh mục đó;
+            // Khoảng ngày của kỳ đang xem (ngày cuối tính cả ngày đó).
+            final from = DateTime.tryParse('${r['from']}');
+            final to = DateTime.tryParse('${r['to']}');
+            final range = from == null || to == null ? null : DateTimeRange(start: from, end: to.isBefore(from) ? from : to);
+            // Bấm một mục: danh mục thật thì mở các giao dịch cấu thành của danh mục đó;
             // "Khác" (gộp các danh mục dưới 3%) thì mở danh sách các danh mục bên trong.
             void open((String, int, double, Color, String, String?) x) {
               if (x.$6 != null) {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => TransactionsScreen(initialCategoryId: x.$6, title: x.$1, standalone: true)));
+                _openCategory(context, x.$6!, x.$1, range);
               } else if (other != null) {
-                _showOther(context, other);
+                _showOther(context, other, range);
               }
             }
 
@@ -127,8 +130,22 @@ class _CategoryReportCardState extends State<CategoryReportCard> {
     );
   }
 
+  /// Mở các giao dịch cấu thành một danh mục của báo cáo: lọc sẵn đúng kỳ, đúng ví và đúng loại thu/chi đang xem,
+  /// để tổng trong danh sách khớp với số tiền trên báo cáo.
+  void _openCategory(BuildContext context, String categoryId, String name, DateTimeRange? range) => Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (_) => TransactionsScreen(
+                initialCategoryId: categoryId,
+                initialWalletId: widget.query.walletId,
+                initialType: widget.type,
+                initialRange: range,
+                title: name,
+                standalone: true,
+              )));
+
   /// Danh sách các danh mục nhỏ (dưới 3%) đã gộp vào "Khác"; bấm từng mục để xem giao dịch.
-  void _showOther(BuildContext context, Map<String, dynamic> other) {
+  void _showOther(BuildContext context, Map<String, dynamic> other, DateTimeRange? range) {
     final cats = ((other['categories'] as List?) ?? []).map((e) => Map<String, dynamic>.from(e)).toList();
     showModalBottomSheet(
       context: context,
@@ -153,11 +170,7 @@ class _CategoryReportCardState extends State<CategoryReportCard> {
                 trailing: Money((c['amount'] as num).toInt(), style: const TextStyle(fontWeight: FontWeight.w600)),
                 onTap: () {
                   Navigator.pop(sheet);
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => TransactionsScreen(
-                              initialCategoryId: c['category_id'] as String, title: c['name'] as String, standalone: true)));
+                  _openCategory(context, c['category_id'] as String, c['name'] as String, range);
                 },
               ),
           ]),

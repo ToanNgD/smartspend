@@ -5,5 +5,8 @@ server/service-account*.json
 **/.dart_tool/
 **/build/
 
+# Bản cài iPhone tải về từ GitHub Actions (file lớn, không cần lưu trong repo)
+*.ipa
+
 # Khóa dịch vụ Firebase - tuyệt đối không đưa lên git
 *firebase-adminsdk*.json

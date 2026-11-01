@@ -224,7 +224,10 @@ class _BudgetTxListState extends State<_BudgetTxList> {
     return Card(
       child: Column(children: [
         for (final t in items)
-          TxTile(tx: t, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TxDetailScreen(id: t.id)))),
+          TxTile(
+              tx: t,
+              showDate: true,
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TxDetailScreen(id: t.id)))),
         if (_more)
           Padding(
             padding: const EdgeInsets.all(12),

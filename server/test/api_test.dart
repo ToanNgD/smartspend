@@ -552,6 +552,12 @@ void main() {
       expect(b['total'], 1510000);
       expect((b['items'] as List).length, 2);
       expect(b['other']['amount'], 10000);
+      // Khoảng ngày của báo cáo danh mục khớp với báo cáo tổng hợp (ngày cuối tính cả ngày đó).
+      final (_, sum) = await a.get('/reports/summary?period=month');
+      expect([b['from'], b['to']], [sum['from'], sum['to']]);
+      (s, b) = await a.get('/reports/categories?period=month&offset=-1&type=expense');
+      final (_, prevSum) = await a.get('/reports/summary?period=month&offset=-1');
+      expect([b['from'], b['to']], [prevSum['from'], prevSum['to']]);
       (s, b) = await a.get('/reports/trend?period=month&group=day');
       expect(s, 200);
       expect((b['items'] as List).fold<int>(0, (x, e) => x + (e['expense'] as int)), 1510000);

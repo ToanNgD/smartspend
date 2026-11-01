@@ -151,7 +151,7 @@ Một số tính năng cần lưu ý khi thử:
 
 - **Bắt buộc dùng HTTPS.** Đặt server sau một reverse proxy có TLS, ví dụ Caddy: `caddy reverse-proxy --from api.tenmien.vn --to localhost:8080`. Khi build app, truyền `--dart-define=API_URL=https://api.tenmien.vn/api/v1`.
 - Thư mục ảnh (`UPLOAD_DIR`) phải nằm ngoài thư mục web công khai. Ảnh chỉ tải được qua API có kiểm tra token.
-- Không đưa các file sau lên git: `server/.env`, file service account Firebase, thư mục `server/storage/`.
+- Không đưa các file sau lên git: `server/.env`, file service account Firebase, thư mục `server/storage/`, file cài đặt `.ipa` (đã khai báo sẵn trong `.gitignore`).
 - Giới hạn tần suất hiện được đếm trong bộ nhớ, đủ cho một server. Nếu chạy nhiều server thì chuyển sang Redis.
 
 ---

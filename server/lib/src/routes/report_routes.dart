@@ -124,9 +124,13 @@ class ReportRoutes {
       (pct < 3 ? other : items).add(item);
     }
     final otherAmount = other.fold<int>(0, (s, x) => s + (x['amount'] as int));
+    // from/to là ngày đầu và ngày cuối (bao gồm) của kỳ, cách tính giống /reports/summary,
+    // để app mở đúng các giao dịch cấu thành khi bấm vào một danh mục.
+    final from = (r['s'] as DateTime).toIso8601String().substring(0, 10);
+    final last = (r['e'] as DateTime).subtract(const Duration(seconds: 1)).toIso8601String().substring(0, 10);
     return jsonOk({
-      'from': (r['s'] as DateTime).toIso8601String().substring(0, 10),
-      'to': (r['e'] as DateTime).toIso8601String().substring(0, 10),
+      'from': from,
+      'to': last.compareTo(from) < 0 ? from : last,
       'type': type,
       'total': total,
       'items': items,
