@@ -9,7 +9,7 @@
 | `database/schema.sql` | Lược đồ CSDL (giống file trong thư mục `csdl/`) | PostgreSQL 15+ |
 | `API.md` | Danh sách API | |
 
-Phần bảo mật, quy tắc nghiệp vụ và luồng xử lý được làm theo tài liệu đặc tả `CN.docx` và `Dac_ta_use_case.docx`.
+Phần bảo mật, quy tắc nghiệp vụ và luồng xử lý được làm theo tài liệu đặc tả `dac_ta_chuc_nang.docx` và `Dac_ta_use_case.docx`.
 
 ---
 
