@@ -121,7 +121,7 @@ Lưu ý về gói miễn phí: Google có thể dùng dữ liệu của gói mi�
 
 Khi có key, AI được dùng cho 3 việc: đọc câu nhập (giới hạn `AI_PARSE_PER_DAY`), phân tích gợi ý (`AI_ANALYZE_PER_DAY`) và viết câu cảnh báo dự báo/chi bất thường (`AI_PHRASE_PER_DAY`, hết lượt thì dùng câu mẫu).
 
-Có thể đổi model bằng biến `GEMINI_MODEL`. Mặc định là `gemini-3.6-flash`; nếu Google đổi tên model, xem tên mới tại https://ai.google.dev/gemini-api/docs/models.
+Có thể đổi model bằng biến `GEMINI_MODEL`. Mặc định là `gemini-3.5-flash-lite` (dòng Flash-Lite: nhỏ, rẻ, gói miễn phí cho nhiều lượt hơn, đủ dùng cho các việc của app). Nếu Google đổi tên model, xem tên mới trong Google AI Studio hoặc tại https://ai.google.dev/gemini-api/docs/models.
 
 ### 3.2. Bật thông báo đẩy (Firebase Cloud Messaging)
 

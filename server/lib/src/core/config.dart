@@ -127,7 +127,7 @@ class Config {
       supabaseKey: get('SUPABASE_SERVICE_KEY'),
       supabaseBucket: get('SUPABASE_BUCKET', 'attachments'),
       geminiApiKey: get('GEMINI_API_KEY'),
-      geminiModel: get('GEMINI_MODEL', 'gemini-3.6-flash'),
+      geminiModel: get('GEMINI_MODEL', 'gemini-3.5-flash-lite'),
       aiParsePerDay: getInt('AI_PARSE_PER_DAY', 50),
       aiAnalyzePerDay: getInt('AI_ANALYZE_PER_DAY', 3),
       aiPhrasePerDay: getInt('AI_PHRASE_PER_DAY', 10),
