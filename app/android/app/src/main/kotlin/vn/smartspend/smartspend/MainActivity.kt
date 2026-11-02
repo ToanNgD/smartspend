@@ -30,7 +30,9 @@ class MainActivity : FlutterFragmentActivity() {
             ).apply { description = "Cảnh báo vượt ngân sách, dự báo và khoản chi bất thường" }
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
-        launchPayload = intent?.getStringExtra(EXTRA_PAYLOAD)
+        // Chỉ lấy khi app được mở mới từ thông báo. Khi hệ thống tắt app ở nền rồi dựng lại activity
+        // (savedInstanceState khác null), intent cũ vẫn còn: không được mở lại màn hình của thông báo cũ.
+        if (savedInstanceState == null) launchPayload = intent?.getStringExtra(EXTRA_PAYLOAD)
     }
 
     // Khi app đang mở, Firebase không tự hiện thông báo đẩy trên Android: Dart gọi "show" để hiện
@@ -61,6 +63,8 @@ class MainActivity : FlutterFragmentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         val payload = intent.getStringExtra(EXTRA_PAYLOAD) ?: return
+        // Dart chưa đăng ký nhận (app vừa được dựng lại, chưa mở khóa) thì Flutter giữ tin nhắn này
+        // và chuyển cho Dart ngay khi Dart đăng ký, nên không bị mất.
         notifyChannel?.invokeMethod("opened", payload)
     }
 

@@ -80,10 +80,17 @@ class BudgetRoutes {
         if (cur['scope'] != 'categories') throw ApiError.badRequest('Ngân sách toàn bộ không có danh mục');
         final cats = f.uuidList('category_ids', max: 20);
         if (cats.isEmpty) throw ApiError.badRequest('Hãy chọn ít nhất một danh mục chi');
-        await _checkCategories(s, req.userId, cats);
-        await _checkDuplicate(s, req.userId, cur['period'] as String, 'categories', cats, exceptId: id);
-        await _setCategories(s, req.userId, id, cats);
-        changed.add('category_ids');
+        final old = await s.rows('SELECT category_id::text AS id FROM budget_categories WHERE budget_id = @b AND user_id = @u',
+            {'b': id, 'u': req.userId});
+        final oldIds = {for (final r in old) r['id'] as String};
+        // App luôn gửi kèm danh mục khi sửa tên/hạn mức. Danh mục không đổi thì không kiểm tra trùng: sau khi xóa
+        // danh mục có chuyển giao dịch, hai ngân sách có thể trùng phạm vi nhưng vẫn phải sửa được tên, hạn mức.
+        if (oldIds.length != cats.length || !oldIds.containsAll(cats)) {
+          await _checkCategories(s, req.userId, cats);
+          await _checkDuplicate(s, req.userId, cur['period'] as String, 'categories', cats, exceptId: id);
+          await _setCategories(s, req.userId, id, cats);
+          changed.add('category_ids');
+        }
       }
       await s.run('UPDATE budgets SET name = @n, amount_limit = @l WHERE id = @id AND user_id = @u',
           {'n': name, 'l': limit, 'id': id, 'u': req.userId});
@@ -93,10 +100,12 @@ class BudgetRoutes {
     return _get(req, id);
   }
 
-  /// Xóa ngân sách không xóa giao dịch.
+  /// Xóa ngân sách không xóa giao dịch; các cảnh báo của ngân sách này cũng được gỡ
+  /// (ngân sách không còn thì cảnh báo không mở được và không còn ý nghĩa).
   Future<Response> _delete(Request req, String id) async {
     requireUuid(id);
     await c.db.tx((s) async {
+      await s.run('DELETE FROM alerts WHERE budget_id = @id AND user_id = @u', {'id': id, 'u': req.userId});
       final n = await s.run('DELETE FROM budgets WHERE id = @id AND user_id = @u', {'id': id, 'u': req.userId});
       if (n == 0) throw ApiError.notFound('Không tìm thấy ngân sách');
       await audit(s, req.userId, 'budget', id, 'delete');

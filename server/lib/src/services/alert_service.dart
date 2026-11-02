@@ -9,8 +9,9 @@ import 'push_service.dart';
 
 /// 5.2 Cảnh báo vượt ngân sách, 6.3 Dự báo và cảnh báo bất thường.
 /// Mỗi sự kiện chỉ cảnh báo một lần nhờ khóa dedupe_key UNIQUE trong bảng alerts.
-/// Cảnh báo không còn đúng thì được gỡ: mức đã dùng giảm xuống dưới ngưỡng (xóa/sửa khoản chi, tăng hạn mức...)
-/// hoặc khoản chi bị cảnh báo bất thường đã bị xóa. Nhờ vậy lần chạm ngưỡng sau vẫn được báo.
+/// Cảnh báo không còn đúng thì được gỡ: mức đã dùng giảm xuống dưới ngưỡng (xóa/sửa khoản chi, tăng hạn mức...),
+/// khoản chi bị cảnh báo bất thường đã bị xóa hoặc được sửa hết bất thường. Nhờ vậy lần chạm ngưỡng sau vẫn được báo.
+/// (Xóa ngân sách thì budget_routes gỡ luôn các cảnh báo của ngân sách đó.)
 /// Nội dung thông báo không chứa số tiền cụ thể.
 /// Cảnh báo dự báo và bất thường (UC13): server tự tính bằng thống kê, sau đó nhờ dịch vụ AI
 /// diễn đạt câu chữ từ các con số đã tính; AI lỗi/hết lượt thì dùng câu mẫu (UC13 - 3a).
@@ -24,15 +25,19 @@ class AlertService {
   /// [categoryId] là danh mục của khoản chi sau khi lưu; null khi giao dịch không còn là khoản chi
   /// (sửa khoản chi thành khoản thu): khi đó chỉ gỡ các cảnh báo ngưỡng không còn đúng.
   /// [newTransactionId]: khoản chi cần xét chi bất thường (vừa thêm hoặc vừa hoàn tác xóa).
-  Future<void> afterExpenseChange(String userId, {String? categoryId, String? newTransactionId}) async {
+  /// [editedTransactionId]: giao dịch vừa được sửa số tiền, danh mục hoặc loại - xét lại cảnh báo bất thường của nó.
+  Future<void> afterExpenseChange(String userId,
+      {String? categoryId, String? newTransactionId, String? editedTransactionId}) async {
     try {
       // Sửa giao dịch có thể làm mức đã dùng giảm (bớt tiền, đổi danh mục hoặc ngày).
       await _rearmBudgets(userId);
-      if (categoryId == null) return;
       final st = await db.one(
           'SELECT budget_alerts_enabled, smart_alerts_enabled FROM user_settings WHERE user_id = @u',
           {'u': userId});
-      if (st == null) return;
+      if (editedTransactionId != null) {
+        await _recheckAnomaly(userId, editedTransactionId, notify: st?['smart_alerts_enabled'] == true);
+      }
+      if (categoryId == null || st == null) return;
       if (st['budget_alerts_enabled'] == true) {
         await checkBudgets(userId, categoryId: categoryId);
       }
@@ -205,14 +210,52 @@ class AlertService {
     }
   }
 
+  /// Khoản chi (chưa xóa, không phải giao dịch hệ thống) kèm tên danh mục; null nếu không phải khoản chi như vậy.
+  Future<Map<String, dynamic>?> _expenseTx(String userId, String txId) => db.one(
+      "SELECT t.amount, t.category_id, c.name AS category FROM transactions t "
+      "JOIN categories c ON c.id = t.category_id "
+      "WHERE t.id = @id AND t.user_id = @u AND t.type = 'expense' AND t.source <> 'system' "
+      "AND t.deleted_at IS NULL",
+      {'id': txId, 'u': userId});
+
+  /// Khoản chi [t] bị coi là bất thường khi cao gấp từ 3 lần trung bình 90 ngày của cùng danh mục và vượt
+  /// trung bình cộng 2 lần độ lệch chuẩn (cần ít nhất 5 khoản khác). Trả về số lần so với trung bình, null nếu bình thường.
+  Future<double?> _anomalyRatio(String userId, String txId, Map<String, dynamic> t) async {
+    final s = await db.one(
+        "SELECT count(*)::int AS n, avg(amount)::float8 AS avg, coalesce(stddev_samp(amount), 0)::float8 AS sd "
+        "FROM transactions WHERE user_id = @u AND category_id = @c AND type = 'expense' "
+        "AND deleted_at IS NULL AND source <> 'system' AND id <> @id "
+        "AND occurred_at >= now() - interval '90 days'",
+        {'u': userId, 'c': t['category_id'], 'id': txId});
+    if ((s!['n'] as int) < 5) return null;
+    final avg = s['avg'] as double;
+    final sd = s['sd'] as double;
+    final amount = (t['amount'] as int).toDouble();
+    return amount >= 3 * avg && amount > avg + 2 * sd ? amount / avg : null;
+  }
+
+  /// Sau khi sửa số tiền, danh mục hoặc loại của giao dịch: xét lại cảnh báo chi bất thường của chính giao dịch đó.
+  /// - Hết bất thường (bớt tiền, đổi danh mục, đổi thành khoản thu) thì gỡ cảnh báo.
+  /// - Vẫn bất thường trong cùng danh mục thì giữ cảnh báo cũ (không gửi lại).
+  /// - Trở thành bất thường thì báo như khoản chi mới (khi [notify], tức đang bật cảnh báo thông minh).
+  /// Cảnh báo người dùng đã bấm "Bình thường" được giữ nguyên.
+  Future<void> _recheckAnomaly(String userId, String txId, {required bool notify}) async {
+    final old = await db.one(
+        "SELECT id, category_id, feedback FROM alerts WHERE user_id = @u AND type = 'anomaly' AND transaction_id = @t LIMIT 1",
+        {'u': userId, 't': txId});
+    if (old != null && old['feedback'] == 'normal') return;
+    final t = await _expenseTx(userId, txId);
+    if (old != null) {
+      final keep = t != null && t['category_id'] == old['category_id'] && await _anomalyRatio(userId, txId, t) != null;
+      if (keep) return;
+      await db.exec('DELETE FROM alerts WHERE id = @id AND user_id = @u', {'id': old['id'], 'u': userId});
+    }
+    if (t != null && notify) await checkAnomaly(userId, txId, background: true);
+  }
+
   /// So khoản chi mới với trung bình 90 ngày của cùng danh mục (trung bình, độ lệch chuẩn).
   Future<void> checkAnomaly(String userId, String txId, {bool background = false}) async {
-    final t = await db.one(
-        "SELECT t.amount, t.category_id, c.name AS category FROM transactions t "
-        "JOIN categories c ON c.id = t.category_id "
-        "WHERE t.id = @id AND t.user_id = @u AND t.type = 'expense' AND t.source <> 'system' "
-        "AND t.deleted_at IS NULL",
-        {'id': txId, 'u': userId});
+    final t = await _expenseTx(userId, txId);
     if (t == null) return;
     // Người dùng đã bấm "Bình thường" cho danh mục này -> không cảnh báo loại tương tự nữa.
     final muted = await db.one(
@@ -226,18 +269,8 @@ class AlertService {
         "AND sent_at > now() - interval '24 hours' LIMIT 1",
         {'u': userId, 'c': t['category_id']});
     if (recent != null) return;
-    final s = await db.one(
-        "SELECT count(*)::int AS n, avg(amount)::float8 AS avg, coalesce(stddev_samp(amount), 0)::float8 AS sd "
-        "FROM transactions WHERE user_id = @u AND category_id = @c AND type = 'expense' "
-        "AND deleted_at IS NULL AND source <> 'system' AND id <> @id "
-        "AND occurred_at >= now() - interval '90 days'",
-        {'u': userId, 'c': t['category_id'], 'id': txId});
-    final n = s!['n'] as int;
-    if (n < 5) return;
-    final avg = s['avg'] as double;
-    final sd = s['sd'] as double;
-    final amount = (t['amount'] as int).toDouble();
-    if (amount >= 3 * avg && amount > avg + 2 * sd) {
+    final ratio = await _anomalyRatio(userId, txId, t);
+    if (ratio != null) {
       final id = await _insert(userId,
           type: 'anomaly',
           dedupe: 'anomaly:$txId',
@@ -252,7 +285,7 @@ class AlertService {
             name: t['category'] as String,
             facts: {
               'danh_muc': t['category'] as String,
-              'gap_bao_nhieu_lan_trung_binh': double.parse((amount / avg).toStringAsFixed(1)),
+              'gap_bao_nhieu_lan_trung_binh': double.parse(ratio.toStringAsFixed(1)),
             });
       }
     }

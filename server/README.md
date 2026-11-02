@@ -1,2 +1,6 @@
-A sample command-line application with an entrypoint in `bin/`, library code
-in `lib/`, and example unit test in `test/`.
+# SmartSpend – server
+
+Server API của SmartSpend (Dart + Shelf + PostgreSQL).
+
+- Cài đặt, chạy và kiểm thử: xem `README.md` ở thư mục gốc.
+- Danh sách API: `API.md`. Đưa server lên cloud: `DEPLOY.md`.

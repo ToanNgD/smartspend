@@ -189,7 +189,9 @@ class TransactionRoutes {
         if (!occurred.isAtSameMomentAs(old['occurred_at'] as DateTime)) 'occurred_at',
         if (note != old['note']) 'note',
       ];
-      if (changed.isEmpty) return {'changed': false, 'type': type, 'old_type': old['type'], 'category_id': categoryId};
+      if (changed.isEmpty) {
+        return {'changed': false, 'type': type, 'old_type': old['type'], 'category_id': categoryId, 'fields': changed};
+      }
 
       // Khóa ví theo thứ tự cố định để tránh deadlock.
       final ws = {old['wallet_id'] as String, walletId}.toList()..sort();
@@ -206,13 +208,16 @@ class TransactionRoutes {
           'WHERE id = @id AND user_id = @u',
           {'t': type, 'a': amount, 'w': walletId, 'c': categoryId, 'o': occurred, 'n': note, 'id': id, 'u': req.userId});
       await audit(s, req.userId, 'transaction', id, 'update', changed);
-      return {'changed': true, 'type': type, 'old_type': old['type'], 'category_id': categoryId};
+      return {'changed': true, 'type': type, 'old_type': old['type'], 'category_id': categoryId, 'fields': changed};
     });
+    // Đổi số tiền, danh mục hoặc loại thì xét lại cảnh báo chi bất thường của chính giao dịch này (6.3).
+    final recheck = (res['fields'] as List).any((f) => f == 'amount' || f == 'category_id' || f == 'type');
     if (res['changed'] == true && res['type'] == 'expense') {
-      await c.alerts.afterExpenseChange(req.userId, categoryId: res['category_id'] as String);
+      await c.alerts.afterExpenseChange(req.userId,
+          categoryId: res['category_id'] as String, editedTransactionId: recheck ? id : null);
     } else if (res['changed'] == true && res['old_type'] == 'expense') {
-      // Khoản chi đổi thành khoản thu: mức đã dùng của ngân sách giảm.
-      await c.alerts.afterExpenseChange(req.userId);
+      // Khoản chi đổi thành khoản thu: mức đã dùng của ngân sách giảm, cảnh báo bất thường (nếu có) được gỡ.
+      await c.alerts.afterExpenseChange(req.userId, editedTransactionId: id);
     }
     return _get(req, id);
   }

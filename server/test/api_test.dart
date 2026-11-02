@@ -529,6 +529,43 @@ void main() {
       expect(await types(), isEmpty);
     });
 
+    test('xóa danh mục làm hai ngân sách trùng phạm vi: vẫn sửa được tên, hạn mức; xóa ngân sách thì gỡ cảnh báo', () async {
+      final a = await Api.register();
+      final w = await cashWallet(a);
+      final food = await catByName(a, 'Ăn uống');
+      final transport = await catByName(a, 'Đi lại');
+      var (s, b) = await a.post('/categories', {'name': 'Cà phê', 'type': 'expense', 'icon': 'food', 'color': '#D9822B'});
+      final cafe = b['id'];
+      (s, b) = await a.post('/budgets', {'name': 'NS cà phê', 'amount_limit': 100000, 'period': 'month', 'scope': 'categories',
+        'category_ids': [cafe]});
+      final budgetA = b['id'];
+      (s, b) = await a.post('/budgets', {'name': 'NS ăn uống', 'amount_limit': 2000000, 'period': 'month', 'scope': 'categories',
+        'category_ids': [food['id']]});
+      expect(s, 201);
+      await addTx(a, wallet: w['id'], cat: cafe, amount: 90000);
+      (s, _) = await a.delete('/categories/$cafe?move_to=${food['id']}');
+      expect(s, 200);
+      // Hai ngân sách giờ cùng phạm vi Ăn uống. App luôn gửi kèm danh mục khi sửa tên, hạn mức.
+      (s, b) = await a.patch('/budgets/$budgetA', {'name': 'NS cà phê', 'amount_limit': 120000, 'category_ids': [food['id']]});
+      expect(s, 200, reason: '$b');
+      expect(b['amount_limit'], 120000);
+      (s, _) = await a.patch('/budgets/$budgetA', {'category_ids': [food['id'], transport['id']]});
+      expect(s, 200);
+      (s, b) = await a.patch('/budgets/$budgetA', {'category_ids': [food['id']]});
+      expect(s, 409, reason: 'đổi danh mục thành trùng với ngân sách khác thì vẫn bị chặn');
+      expect(b['error']['code'], 'duplicate_budget');
+
+      // 90.000 / 120.000 = 75%; thêm 10.000 -> 83% -> cảnh báo 80%. Xóa ngân sách thì cảnh báo của nó cũng được gỡ.
+      await addTx(a, wallet: w['id'], cat: food['id'], amount: 10000);
+      var (_, al) = await a.get('/alerts');
+      expect((al['items'] as List).where((x) => x['budget_id'] == budgetA).length, 1);
+      (s, _) = await a.delete('/budgets/$budgetA');
+      expect(s, 204);
+      (_, al) = await a.get('/alerts');
+      expect((al['items'] as List).where((x) => x['type'] == 'budget_80' || x['type'] == 'budget_100'), isEmpty);
+      expect(al['unread_count'], 0);
+    });
+
     test('tắt cảnh báo trong cài đặt', () async {
       final a = await Api.register();
       await a.patch('/settings', {'budget_alerts_enabled': false});
@@ -598,6 +635,51 @@ void main() {
       expect(list.first['feedback'], 'normal');
       await a.post('/transactions/${big['id']}/restore');
       expect((await anomalies()).length, 1);
+    });
+
+    test('sửa khoản chi: hết bất thường thì gỡ cảnh báo, thành bất thường thì báo lại; giữ lựa chọn "Bình thường"', () async {
+      final a = await Api.register();
+      final w = await cashWallet(a);
+      final food = await catByName(a, 'Ăn uống');
+      final transport = await catByName(a, 'Đi lại');
+      final salary = await catByName(a, 'Lương');
+      for (final v in [30000, 35000, 40000, 32000, 38000, 36000]) {
+        await addTx(a, wallet: w['id'], cat: food['id'], amount: v,
+            at: DateTime.now().subtract(Duration(days: rnd.nextInt(20) + 1)));
+      }
+      Future<List> anomalies() async {
+        final (_, al) = await a.get('/alerts');
+        return (al['items'] as List).where((x) => x['type'] == 'anomaly').toList();
+      }
+
+      final big = await addTx(a, wallet: w['id'], cat: food['id'], amount: 900000);
+      final first = (await anomalies()).single;
+      // Chỉ sửa ghi chú hoặc vẫn bất thường trong cùng danh mục: giữ nguyên cảnh báo cũ.
+      await a.patch('/transactions/${big['id']}', {'note': 'đi ăn cưới'});
+      await a.patch('/transactions/${big['id']}', {'amount': 850000});
+      expect((await anomalies()).single['id'], first['id']);
+      // Nhập nhầm rồi sửa lại số tiền: hết bất thường -> gỡ.
+      var (s, _) = await a.patch('/transactions/${big['id']}', {'amount': 35000});
+      expect(s, 200);
+      expect(await anomalies(), isEmpty);
+      // Sửa thành bất thường -> báo như khoản chi mới.
+      await a.patch('/transactions/${big['id']}', {'amount': 950000});
+      expect((await anomalies()).single['transaction_id'], big['id']);
+      // Đổi sang danh mục chưa đủ dữ liệu, hoặc đổi thành khoản thu -> gỡ.
+      await a.patch('/transactions/${big['id']}', {'category_id': transport['id']});
+      expect(await anomalies(), isEmpty);
+      await a.patch('/transactions/${big['id']}', {'category_id': food['id']});
+      expect((await anomalies()).length, 1);
+      await a.patch('/transactions/${big['id']}', {'type': 'income', 'category_id': salary['id']});
+      expect(await anomalies(), isEmpty);
+      await a.patch('/transactions/${big['id']}', {'type': 'expense', 'category_id': food['id']});
+      final again = (await anomalies()).single;
+      // Đã bấm "Bình thường": sửa số tiền vẫn giữ cảnh báo (ghi nhớ lựa chọn của người dùng).
+      (s, _) = await a.post('/alerts/${again['id']}/feedback', {'feedback': 'normal'});
+      expect(s, 204);
+      await a.patch('/transactions/${big['id']}', {'amount': 40000});
+      final kept = (await anomalies()).single;
+      expect(kept['feedback'], 'normal');
     });
 
     test('chưa đủ 2 tuần dữ liệu thì không dự báo', () async {
