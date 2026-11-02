@@ -28,6 +28,7 @@ class Config {
   final String fcmServiceAccount;
   final bool enableScheduler;
   final int registerPerHour;
+  final int loginPer15Min;
   final int requestsPerMinute;
   final bool trustProxy;
 
@@ -55,6 +56,7 @@ class Config {
     required this.fcmServiceAccount,
     required this.enableScheduler,
     required this.registerPerHour,
+    required this.loginPer15Min,
     required this.requestsPerMinute,
     required this.trustProxy,
   });
@@ -137,6 +139,7 @@ class Config {
           : get('FCM_SERVICE_ACCOUNT'),
       enableScheduler: getBool('ENABLE_SCHEDULER', true),
       registerPerHour: getInt('REGISTER_PER_IP_PER_HOUR', 5),
+      loginPer15Min: getInt('LOGIN_PER_IP_PER_15MIN', 30),
       requestsPerMinute: getInt('REQUESTS_PER_MINUTE', 120),
       trustProxy: getBool('TRUST_PROXY', false),
     );

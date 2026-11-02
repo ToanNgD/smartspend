@@ -13,10 +13,13 @@ import '../core/validate.dart';
 /// UC01 Đăng ký, UC02 Đăng nhập / duy trì / kết thúc phiên.
 class AuthRoutes {
   final AppContext c;
-  AuthRoutes(this.c) : _registerByIp = RateLimiter(c.config.registerPerHour, const Duration(hours: 1));
+  AuthRoutes(this.c)
+      : _registerByIp = RateLimiter(c.config.registerPerHour, const Duration(hours: 1)),
+        _loginByIp = RateLimiter(c.config.loginPer15Min, const Duration(minutes: 15));
 
   final RateLimiter _registerByIp;
-  final _loginByIp = RateLimiter(30, const Duration(minutes: 15));
+  // Giới hạn số lần đăng nhập theo IP (chống dò mật khẩu). Cả lớp chung Wi-Fi bị tính là một IP: tăng khi demo.
+  final RateLimiter _loginByIp;
   // Đếm sai cho email không tồn tại, để phản hồi giống hệt email có thật.
   final _unknownEmailFails = RateLimiter(5, const Duration(minutes: 15));
 

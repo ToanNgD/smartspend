@@ -97,7 +97,7 @@ cd app
 flutter test
 ```
 
-Lưu ý: khi chạy `dart test`, nên đặt `REGISTER_PER_IP_PER_HOUR=1000` trong `.env`, vì bộ test đăng ký rất nhiều tài khoản.
+Lưu ý: khi chạy `dart test`, nên đặt `REGISTER_PER_IP_PER_HOUR=1000` và `LOGIN_PER_IP_PER_15MIN=1000` trong `.env` rồi khởi động lại server, vì bộ test đăng ký và đăng nhập rất nhiều lần từ cùng một máy. Nếu để mặc định, chạy lại `dart test` trong vòng 15 phút sẽ có ca đăng nhập báo lỗi 429 (bị giới hạn), dù code không sai.
 
 ---
 

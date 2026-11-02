@@ -116,13 +116,16 @@ class Session extends ChangeNotifier with WidgetsBindingObserver {
     push.register();
   }
 
-  void lockNow() {
+  /// Khóa app (bấm nút khóa, hoặc quay lại sau hơn 60 giây ở nền). Chỉ khóa khi đã đặt PIN.
+  Future<void> lockNow() async {
     if (status != SessionStatus.ready) return;
-    vault.hasPin().then((has) {
-      if (!has) return;
-      vault.lock();
-      _set(SessionStatus.locked);
-    });
+    try {
+      if (!await vault.hasPin() || status != SessionStatus.ready) return;
+    } catch (_) {
+      return;
+    }
+    vault.lock();
+    _set(SessionStatus.locked);
   }
 
   void _setObscured(bool v) {
@@ -146,8 +149,14 @@ class Session extends ChangeNotifier with WidgetsBindingObserver {
       case AppLifecycleState.resumed:
         final since = _backgroundAt;
         _backgroundAt = null;
-        _setObscured(false);
-        if (since != null && DateTime.now().difference(since) > AppConfig.lockAfter) lockNow();
+        if (since != null && DateTime.now().difference(since) > AppConfig.lockAfter) {
+          // Giữ lớp che cho tới khi khóa xong (kiểm tra PIN phải đọc bộ nhớ bảo mật, mất vài khung hình),
+          // để dữ liệu không lóe lên trước màn hình khóa.
+          _setObscured(true);
+          lockNow().whenComplete(() => _setObscured(false));
+        } else {
+          _setObscured(false);
+        }
       case AppLifecycleState.detached:
         break;
     }

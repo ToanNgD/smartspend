@@ -586,9 +586,11 @@ void main() {
       final a = await Api.register();
       final w = await cashWallet(a);
       final food = await catByName(a, 'Ăn uống');
-      for (final v in [30000, 35000, 40000, 32000, 38000, 36000]) {
-        await addTx(a, wallet: w['id'], cat: food['id'], amount: v,
-            at: DateTime.now().subtract(Duration(days: rnd.nextInt(20) + 1)));
+      final amounts = [30000, 35000, 40000, 32000, 38000, 36000];
+      for (var i = 0; i < amounts.length; i++) {
+        // Khoản đầu cố định 20 ngày trước để luôn đủ 2 tuần dữ liệu cho phần kiểm tra dự báo cuối ca.
+        await addTx(a, wallet: w['id'], cat: food['id'], amount: amounts[i],
+            at: DateTime.now().subtract(Duration(days: i == 0 ? 20 : rnd.nextInt(20) + 1)));
       }
       await addTx(a, wallet: w['id'], cat: food['id'], amount: 900000);
       var (_, al) = await a.get('/alerts');
