@@ -189,7 +189,7 @@ class TransactionRoutes {
         if (!occurred.isAtSameMomentAs(old['occurred_at'] as DateTime)) 'occurred_at',
         if (note != old['note']) 'note',
       ];
-      if (changed.isEmpty) return {'changed': false, 'type': type, 'category_id': categoryId};
+      if (changed.isEmpty) return {'changed': false, 'type': type, 'old_type': old['type'], 'category_id': categoryId};
 
       // Khóa ví theo thứ tự cố định để tránh deadlock.
       final ws = {old['wallet_id'] as String, walletId}.toList()..sort();
@@ -206,10 +206,13 @@ class TransactionRoutes {
           'WHERE id = @id AND user_id = @u',
           {'t': type, 'a': amount, 'w': walletId, 'c': categoryId, 'o': occurred, 'n': note, 'id': id, 'u': req.userId});
       await audit(s, req.userId, 'transaction', id, 'update', changed);
-      return {'changed': true, 'type': type, 'category_id': categoryId};
+      return {'changed': true, 'type': type, 'old_type': old['type'], 'category_id': categoryId};
     });
     if (res['changed'] == true && res['type'] == 'expense') {
       await c.alerts.afterExpenseChange(req.userId, categoryId: res['category_id'] as String);
+    } else if (res['changed'] == true && res['old_type'] == 'expense') {
+      // Khoản chi đổi thành khoản thu: mức đã dùng của ngân sách giảm.
+      await c.alerts.afterExpenseChange(req.userId);
     }
     return _get(req, id);
   }
@@ -218,6 +221,7 @@ class TransactionRoutes {
   Future<Response> _delete(Request req, String id) async {
     requireUuid(id);
     await c.db.tx((s) => _softDelete(s, req.userId, id));
+    await c.alerts.afterTransactionsDeleted(req.userId, [id]);
     return jsonOk({'id': id, 'deleted': true});
   }
 
@@ -230,6 +234,7 @@ class TransactionRoutes {
         await _softDelete(s, req.userId, id);
       }
     });
+    await c.alerts.afterTransactionsDeleted(req.userId, ids);
     return jsonOk({'deleted': ids.length});
   }
 
@@ -259,7 +264,8 @@ class TransactionRoutes {
       return t;
     });
     if (t['type'] == 'expense') {
-      await c.alerts.afterExpenseChange(req.userId, categoryId: t['category_id'] as String);
+      // Hoàn tác xóa: xét lại ngưỡng ngân sách và chi bất thường cho khoản chi được khôi phục.
+      await c.alerts.afterExpenseChange(req.userId, categoryId: t['category_id'] as String, newTransactionId: id);
     }
     return _get(req, id);
   }

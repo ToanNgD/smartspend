@@ -9,6 +9,8 @@ import 'push_service.dart';
 
 /// 5.2 Cảnh báo vượt ngân sách, 6.3 Dự báo và cảnh báo bất thường.
 /// Mỗi sự kiện chỉ cảnh báo một lần nhờ khóa dedupe_key UNIQUE trong bảng alerts.
+/// Cảnh báo không còn đúng thì được gỡ: mức đã dùng giảm xuống dưới ngưỡng (xóa/sửa khoản chi, tăng hạn mức...)
+/// hoặc khoản chi bị cảnh báo bất thường đã bị xóa. Nhờ vậy lần chạm ngưỡng sau vẫn được báo.
 /// Nội dung thông báo không chứa số tiền cụ thể.
 /// Cảnh báo dự báo và bất thường (UC13): server tự tính bằng thống kê, sau đó nhờ dịch vụ AI
 /// diễn đạt câu chữ từ các con số đã tính; AI lỗi/hết lượt thì dùng câu mẫu (UC13 - 3a).
@@ -19,9 +21,14 @@ class AlertService {
   AlertService(this.db, this.push, [this.ai]);
 
   /// Gọi sau khi một khoản chi được tạo/sửa/khôi phục. Lỗi ở đây không làm hỏng giao dịch.
-  Future<void> afterExpenseChange(String userId,
-      {required String categoryId, String? newTransactionId}) async {
+  /// [categoryId] là danh mục của khoản chi sau khi lưu; null khi giao dịch không còn là khoản chi
+  /// (sửa khoản chi thành khoản thu): khi đó chỉ gỡ các cảnh báo ngưỡng không còn đúng.
+  /// [newTransactionId]: khoản chi cần xét chi bất thường (vừa thêm hoặc vừa hoàn tác xóa).
+  Future<void> afterExpenseChange(String userId, {String? categoryId, String? newTransactionId}) async {
     try {
+      // Sửa giao dịch có thể làm mức đã dùng giảm (bớt tiền, đổi danh mục hoặc ngày).
+      await _rearmBudgets(userId);
+      if (categoryId == null) return;
       final st = await db.one(
           'SELECT budget_alerts_enabled, smart_alerts_enabled FROM user_settings WHERE user_id = @u',
           {'u': userId});
@@ -39,9 +46,12 @@ class AlertService {
     }
   }
 
-  /// Gọi sau khi tạo/sửa ngân sách: chỉ kiểm tra ngưỡng khi người dùng đang bật cảnh báo ngân sách.
+  /// Gọi sau khi tạo/sửa ngân sách hoặc xóa danh mục (giao dịch và phạm vi ngân sách có thể chuyển sang danh mục khác).
+  /// Luôn gỡ cảnh báo ngưỡng không còn đúng (vd tăng hạn mức); chỉ kiểm tra ngưỡng mới khi người dùng
+  /// đang bật cảnh báo ngân sách.
   Future<void> afterBudgetChange(String userId) async {
     try {
+      await _rearmBudgets(userId);
       final st = await db.one('SELECT budget_alerts_enabled FROM user_settings WHERE user_id = @u', {'u': userId});
       if (st?['budget_alerts_enabled'] == true) await checkBudgets(userId);
     } catch (e) {
@@ -49,11 +59,45 @@ class AlertService {
     }
   }
 
+  /// Gọi sau khi xóa (một hoặc nhiều) giao dịch.
+  /// - Mức đã dùng của ngân sách có thể giảm: gỡ cảnh báo ngưỡng không còn đúng.
+  /// - Khoản chi bị cảnh báo bất thường đã bị xóa: gỡ luôn cảnh báo đó (hoàn tác thì xét lại).
+  ///   Giữ cảnh báo người dùng đã bấm "Bình thường" vì nó ghi nhớ lựa chọn cho danh mục.
+  Future<void> afterTransactionsDeleted(String userId, List<String> transactionIds) async {
+    try {
+      await db.exec(
+          "DELETE FROM alerts WHERE user_id = @u AND type = 'anomaly' AND feedback IS NULL "
+          'AND transaction_id = ANY(@ids::uuid[])',
+          {'u': userId, 'ids': transactionIds});
+      await _rearmBudgets(userId);
+    } catch (e) {
+      stderr.writeln('[alerts] lỗi gỡ cảnh báo: ${e.runtimeType}');
+    }
+  }
+
+  /// Khóa của cảnh báo ngưỡng [th] trong kỳ hiện tại của ngân sách [b]: mỗi ngưỡng một lần mỗi kỳ.
+  String _budgetKey(Map<String, dynamic> b, int th) =>
+      'budget:${b['id']}:${(b['period_start'] as String).substring(0, 10)}:$th';
+
+  /// Ngưỡng nào mà mức đã dùng trong kỳ hiện tại giờ thấp hơn thì gỡ cảnh báo của ngưỡng đó:
+  /// cảnh báo sai biến mất khỏi danh sách và lần chạm ngưỡng sau được báo lại.
+  /// Chạy cả khi người dùng tắt cảnh báo (chỉ gỡ, không gửi gì).
+  Future<void> _rearmBudgets(String userId) async {
+    final keys = [
+      for (final b in await budgetsWithUsage(db.pool, userId))
+        for (final th in [80, 100])
+          if ((b['percent'] as double) < th) _budgetKey(b, th),
+    ];
+    if (keys.isEmpty) return;
+    await db.exec(
+        "DELETE FROM alerts WHERE user_id = @u AND type IN ('budget_80', 'budget_100') AND dedupe_key = ANY(@k::text[])",
+        {'u': userId, 'k': keys});
+  }
+
   Future<void> checkBudgets(String userId, {String? categoryId}) async {
     final budgets = await budgetsWithUsage(db.pool, userId, categoryId: categoryId);
     for (final b in budgets) {
       final pct = b['percent'] as double;
-      final periodKey = (b['period_start'] as String).substring(0, 10);
       String? toPush;
       for (final th in [80, 100]) {
         if (pct < th) continue;
@@ -63,7 +107,7 @@ class AlertService {
             : 'Ngân sách ${b['name']} đã dùng $th%';
         final inserted = await _insert(userId,
             type: 'budget_$th',
-            dedupe: 'budget:${b['id']}:$periodKey:$th',
+            dedupe: _budgetKey(b, th),
             title: title,
             body: body,
             budgetId: b['id'] as String);

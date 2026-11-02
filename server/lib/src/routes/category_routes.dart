@@ -167,6 +167,8 @@ class CategoryRoutes {
       await audit(s, req.userId, 'category', id, 'delete');
       return n;
     });
+    // Giao dịch và phạm vi ngân sách đã chuyển sang danh mục khác: tính lại ngưỡng cảnh báo ngân sách.
+    await c.alerts.afterBudgetChange(req.userId);
     return jsonOk({'moved_transactions': moved});
   }
 

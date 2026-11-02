@@ -470,6 +470,65 @@ void main() {
       expect(list['totals']['count'], 4, reason: 'xóa ngân sách không xóa giao dịch');
     });
 
+    test('mức đã dùng giảm dưới ngưỡng thì gỡ cảnh báo; chạm lại ngưỡng thì báo lại', () async {
+      final a = await Api.register();
+      final w = await cashWallet(a);
+      final food = await catByName(a, 'Ăn uống');
+      final transport = await catByName(a, 'Đi lại');
+      final salary = await catByName(a, 'Lương');
+      var (s, b) = await a.post('/budgets', {'name': 'Ăn uống', 'amount_limit': 500000, 'period': 'month', 'scope': 'categories',
+        'category_ids': [food['id']]});
+      expect(s, 201);
+      final budgetId = b['id'];
+      Future<List<String>> types() async {
+        final (_, al) = await a.get('/alerts');
+        return [for (final x in al['items'] as List) x['type'] as String]..sort();
+      }
+
+      // Nhập 400.000đ (80%) rồi xóa: cảnh báo không còn đúng bị gỡ; nhập lại thì báo lại.
+      var tx = await addTx(a, wallet: w['id'], cat: food['id'], amount: 400000);
+      expect(await types(), ['budget_80']);
+      (s, _) = await a.delete('/transactions/${tx['id']}');
+      expect(s, 200);
+      expect(await types(), isEmpty, reason: 'khoản chi gây cảnh báo đã bị xóa');
+      tx = await addTx(a, wallet: w['id'], cat: food['id'], amount: 400000);
+      expect(await types(), ['budget_80'], reason: 'chạm lại ngưỡng thì báo lại');
+
+      // Xóa rồi hoàn tác: gỡ rồi báo lại.
+      await a.delete('/transactions/${tx['id']}');
+      expect(await types(), isEmpty);
+      (s, _) = await a.post('/transactions/${tx['id']}/restore');
+      expect(s, 200);
+      expect(await types(), ['budget_80']);
+
+      // Sửa bớt tiền, đổi danh mục, đổi thành khoản thu: đều gỡ; sửa lại thì báo lại.
+      await a.patch('/transactions/${tx['id']}', {'amount': 100000});
+      expect(await types(), isEmpty);
+      await a.patch('/transactions/${tx['id']}', {'amount': 600000});
+      expect(await types(), ['budget_100', 'budget_80']);
+      await a.patch('/transactions/${tx['id']}', {'category_id': transport['id']});
+      expect(await types(), isEmpty, reason: 'chuyển sang danh mục ngoài ngân sách');
+      await a.patch('/transactions/${tx['id']}', {'category_id': food['id']});
+      expect(await types(), ['budget_100', 'budget_80']);
+      (s, _) = await a.patch('/transactions/${tx['id']}', {'type': 'income', 'category_id': salary['id']});
+      expect(s, 200);
+      expect(await types(), isEmpty, reason: 'khoản chi đổi thành khoản thu');
+      await a.patch('/transactions/${tx['id']}', {'type': 'expense', 'category_id': food['id'], 'amount': 450000});
+      expect(await types(), ['budget_80']);
+
+      // Tăng hạn mức: 450.000 / 1.000.000 = 45% -> gỡ; giảm lại thì báo lại.
+      (s, _) = await a.patch('/budgets/$budgetId', {'amount_limit': 1000000});
+      expect(s, 200);
+      expect(await types(), isEmpty);
+      await a.patch('/budgets/$budgetId', {'amount_limit': 500000});
+      expect(await types(), ['budget_80']);
+
+      // Xóa nhiều giao dịch cũng gỡ.
+      (s, _) = await a.post('/transactions/bulk-delete', {'ids': [tx['id']]});
+      expect(s, 200);
+      expect(await types(), isEmpty);
+    });
+
     test('tắt cảnh báo trong cài đặt', () async {
       final a = await Api.register();
       await a.patch('/settings', {'budget_alerts_enabled': false});
@@ -504,6 +563,41 @@ void main() {
       expect((al['items'] as List).where((x) => x['type'] == 'anomaly').length, 1);
       final (_, f) = await a.get('/ai/forecast');
       expect(f['enough_data'], true);
+    });
+
+    test('xóa khoản chi bị cảnh báo bất thường thì gỡ cảnh báo, hoàn tác thì xét lại; giữ lựa chọn "Bình thường"', () async {
+      final a = await Api.register();
+      final w = await cashWallet(a);
+      final food = await catByName(a, 'Ăn uống');
+      for (final v in [30000, 35000, 40000, 32000, 38000, 36000]) {
+        await addTx(a, wallet: w['id'], cat: food['id'], amount: v,
+            at: DateTime.now().subtract(Duration(days: rnd.nextInt(20) + 1)));
+      }
+      Future<List> anomalies() async {
+        final (_, al) = await a.get('/alerts');
+        return (al['items'] as List).where((x) => x['type'] == 'anomaly').toList();
+      }
+
+      final big = await addTx(a, wallet: w['id'], cat: food['id'], amount: 900000);
+      expect((await anomalies()).length, 1);
+      var (s, _) = await a.delete('/transactions/${big['id']}');
+      expect(s, 200);
+      expect(await anomalies(), isEmpty, reason: 'khoản chi bị cảnh báo đã bị xóa');
+      (s, _) = await a.post('/transactions/${big['id']}/restore');
+      expect(s, 200);
+      var list = await anomalies();
+      expect(list.length, 1, reason: 'hoàn tác thì xét lại');
+      expect(list.first['transaction_id'], big['id']);
+
+      // Đã bấm "Bình thường": xóa khoản chi vẫn giữ cảnh báo (ghi nhớ lựa chọn), hoàn tác không báo thêm.
+      (s, _) = await a.post('/alerts/${list.first['id']}/feedback', {'feedback': 'normal'});
+      expect(s, 204);
+      await a.delete('/transactions/${big['id']}');
+      list = await anomalies();
+      expect(list.length, 1);
+      expect(list.first['feedback'], 'normal');
+      await a.post('/transactions/${big['id']}/restore');
+      expect((await anomalies()).length, 1);
     });
 
     test('chưa đủ 2 tuần dữ liệu thì không dự báo', () async {

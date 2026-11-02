@@ -53,8 +53,8 @@ Khi có lỗi, server trả về dạng: `{"error": {"code": "...", "message": "
 | POST | /transactions | `{idempotency_key, type, amount, category_id, wallet_id, occurred_at?, note?, source?}`. Gửi trùng `idempotency_key` thì trả lại giao dịch cũ. Có thể trả kèm `warnings: ["over_balance"]`. |
 | GET | /transactions/:id | Chi tiết giao dịch, gồm danh sách ảnh. Giao dịch đã xóa mềm vẫn xem được theo mã, khi đó `deleted_at` khác null (danh sách GET /transactions không trả về giao dịch đã xóa). |
 | PATCH | /transactions/:id | Sửa giao dịch. Server hoàn tác ảnh hưởng cũ rồi áp dụng giá trị mới lên số dư ví. Giao dịch hệ thống (`source = system`: số dư ban đầu, điều chỉnh số dư) không sửa được, trả 400; muốn đổi số dư thì dùng `POST /wallets/:id/adjust`. Giao dịch đã xóa trả 404. |
-| DELETE | /transactions/:id | Xóa mềm và hoàn lại số dư. |
-| POST | /transactions/:id/restore | Hoàn tác thao tác xóa. |
+| DELETE | /transactions/:id | Xóa mềm và hoàn lại số dư; gỡ các cảnh báo không còn đúng (xem phần cảnh báo). |
+| POST | /transactions/:id/restore | Hoàn tác thao tác xóa; xét lại cảnh báo ngân sách và chi bất thường. |
 | POST | /transactions/bulk-delete | `{ids: [...]}` xóa nhiều giao dịch (tối đa 100). |
 
 ## Ảnh giao dịch (UC06.1)
@@ -71,7 +71,7 @@ Khi có lỗi, server trả về dạng: `{"error": {"code": "...", "message": "
 | GET | /budgets, /budgets/:id | Mỗi ngân sách gồm: `spent`, `remaining`, `percent`, `days_left`, `daily_allowance`, `status` (green/yellow/red). |
 | POST | /budgets | `{name, amount_limit, period: week/month, scope: all/categories, category_ids?}`. Không tạo được hai ngân sách trùng phạm vi và chu kỳ. |
 | PATCH, DELETE | /budgets/:id | Sửa hoặc xóa ngân sách. Xóa ngân sách không xóa giao dịch. |
-| GET | /alerts | `{items, unread_count}` |
+| GET | /alerts | `{items, unread_count}`. Mỗi ngưỡng 80%/100% chỉ báo một lần mỗi kỳ; nếu mức đã dùng giảm xuống dưới ngưỡng (xóa/sửa khoản chi, tăng hạn mức) thì cảnh báo đó bị gỡ và lần chạm sau được báo lại. Khoản chi bị cảnh báo bất thường bị xóa thì cảnh báo cũng bị gỡ (trừ cảnh báo đã bấm "Bình thường"). |
 | POST | /alerts/:id/read, /alerts/read-all | Đánh dấu đã đọc. |
 | POST | /alerts/:id/feedback | `{feedback: "normal"}`: lần sau không cảnh báo bất thường cho danh mục này nữa. |
 
