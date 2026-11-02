@@ -45,11 +45,16 @@ class TxEditor extends StatefulWidget {
 class _TxEditorState extends State<TxEditor> {
   late final TextEditingController _amount;
   late final TextEditingController _note;
+  // Ví / danh mục ban đầu của giao dịch đang sửa: vẫn hiện trong danh sách chọn dù ví đã lưu trữ
+  // hay danh mục đang ẩn, để người dùng thấy giao dịch đang ở đâu.
+  String? _origWallet, _origCategory;
 
   @override
   void initState() {
     super.initState();
     final d = widget.draft;
+    _origWallet = d.walletId;
+    _origCategory = d.categoryId;
     _amount = TextEditingController(text: d.amount == null ? '' : NumberFormat.decimalPattern('vi').format(d.amount));
     _note = TextEditingController(text: d.note ?? '');
   }
@@ -93,8 +98,13 @@ class _TxEditorState extends State<TxEditor> {
   Widget build(BuildContext context) {
     final d = widget.draft;
     final data = context.watch<AppData>();
-    final cats = data.visibleCategories(d.type);
-    final wallets = data.activeWallets;
+    final origCat = data.categoryById(_origCategory);
+    final origWallet = data.walletById(_origWallet);
+    final cats = [
+      ...data.visibleCategories(d.type),
+      if (origCat != null && origCat.isHidden && origCat.type == d.type) origCat,
+    ];
+    final wallets = [...data.activeWallets, if (origWallet != null && origWallet.isArchived) origWallet];
     if (d.walletId == null && wallets.isNotEmpty) d.walletId = wallets.first.id;
     final wallet = data.walletById(d.walletId);
     final overBalance = d.type == 'expense' && wallet != null && (d.amount ?? 0) > 0 && d.amount! > wallet.balance;
@@ -143,7 +153,9 @@ class _TxEditorState extends State<TxEditor> {
       Wrap(spacing: 8, runSpacing: 8, children: [
         for (final c in cats)
           ChoiceChip(
-            avatar: Icon(iconMap[c.icon] ?? Icons.more_horiz, size: 18, color: hexColor(c.color)),
+            // Danh mục đang ẩn (giao dịch cũ vẫn thuộc danh mục này): biểu tượng con mắt gạch chéo.
+            avatar: Icon(c.isHidden ? Icons.visibility_off_outlined : (iconMap[c.icon] ?? Icons.more_horiz),
+                size: 18, color: hexColor(c.color)),
             label: Text(c.name),
             selected: d.categoryId == c.id,
             onSelected: (_) {
@@ -158,7 +170,8 @@ class _TxEditorState extends State<TxEditor> {
       Wrap(spacing: 8, runSpacing: 8, children: [
         for (final w in wallets)
           ChoiceChip(
-            avatar: Icon(walletIcon(w.type), size: 18),
+            // Ví đã lưu trữ (giao dịch cũ vẫn thuộc ví này): biểu tượng hộp lưu trữ.
+            avatar: Icon(w.isArchived ? Icons.inventory_2_outlined : walletIcon(w.type), size: 18),
             label: Text(w.name),
             selected: d.walletId == w.id,
             onSelected: (_) {

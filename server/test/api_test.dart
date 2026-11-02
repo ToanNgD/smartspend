@@ -110,12 +110,26 @@ void main() {
       final email = 'lock${DateTime.now().microsecondsSinceEpoch}@example.com';
       await Api.register(email);
       final a = Api();
-      for (var i = 0; i < 5; i++) {
+      for (var i = 0; i < 4; i++) {
         final (s, b) = await a.post('/auth/login', {'email': email, 'password': 'sai123456'});
         expect(s, 401);
         expect(b['error']['message'], 'Email hoặc mật khẩu không đúng');
       }
-      final (s, b) = await a.post('/auth/login', {'email': email, 'password': 'matkhau123'});
+      // Lần sai thứ 5 khóa tài khoản và báo ngay.
+      var (s, b) = await a.post('/auth/login', {'email': email, 'password': 'sai123456'});
+      expect(s, 429);
+      expect(b['error']['code'], 'login_locked');
+      // Đang khóa thì mật khẩu đúng cũng không vào được.
+      (s, b) = await a.post('/auth/login', {'email': email, 'password': 'matkhau123'});
+      expect(s, 429);
+      expect(b['error']['code'], 'login_locked');
+      // Email không tồn tại cũng bị khóa ở lần thứ 5, không phân biệt được với email có thật.
+      final ghost = 'khongco${uid()}@example.com';
+      for (var i = 0; i < 4; i++) {
+        (s, b) = await a.post('/auth/login', {'email': ghost, 'password': 'sai123456'});
+        expect(s, 401);
+      }
+      (s, b) = await a.post('/auth/login', {'email': ghost, 'password': 'sai123456'});
       expect(s, 429);
       expect(b['error']['code'], 'login_locked');
     });
@@ -230,6 +244,34 @@ void main() {
       expect(s, 200, reason: '$b');
       (s, b) = await a.post('/transactions/${t['id']}/restore');
       expect(b['category_id'], other['id']);
+    });
+
+    test('không xóa được danh mục là danh mục duy nhất của một ngân sách', () async {
+      final a = await Api.register();
+      var (s, b) = await a.post('/categories', {'name': 'Trà sữa', 'type': 'expense'});
+      final tea = b['id'];
+      (s, b) = await a.post('/categories', {'name': 'Bánh ngọt', 'type': 'expense'});
+      final cake = b['id'];
+      (s, b) = await a.post('/budgets',
+          {'name': 'Trà sữa tháng', 'amount_limit': 300000, 'period': 'month', 'scope': 'categories', 'category_ids': [tea]});
+      expect(s, 201, reason: '$b');
+      final only = b['id'];
+      (s, b) = await a.post('/budgets', {
+        'name': 'Ăn vặt', 'amount_limit': 500000, 'period': 'week', 'scope': 'categories', 'category_ids': [tea, cake]
+      });
+      expect(s, 201, reason: '$b');
+      final both = b['id'];
+      (s, b) = await a.delete('/categories/$tea');
+      expect(s, 409);
+      expect(b['error']['code'], 'category_in_budget');
+      expect(b['error']['message'], contains('Trà sữa tháng'));
+      // Xóa ngân sách chỉ có danh mục này thì xóa được danh mục; ngân sách còn lại bớt đi danh mục đó.
+      (s, b) = await a.delete('/budgets/$only');
+      expect(s, 204);
+      (s, b) = await a.delete('/categories/$tea');
+      expect(s, 200, reason: '$b');
+      (s, b) = await a.get('/budgets/$both');
+      expect(b['category_ids'], [cake]);
     });
   });
 
@@ -469,6 +511,34 @@ void main() {
       final (_, f) = await a.get('/ai/forecast');
       expect(f['enough_data'], false);
       expect(f['message'], contains('Chưa đủ dữ liệu'));
+    });
+
+    test('kỳ ngân sách mới bắt đầu dưới 3 ngày thì chưa dự báo', () async {
+      final a = await Api.register();
+      final w = await cashWallet(a);
+      final food = await catByName(a, 'Ăn uống');
+      // Có giao dịch từ hơn 2 tuần trước để đủ điều kiện dự báo.
+      await addTx(a, wallet: w['id'], cat: food['id'], amount: 20000, at: DateTime.now().subtract(const Duration(days: 20)));
+      await addTx(a, wallet: w['id'], cat: food['id'], amount: 30000);
+      await a.post('/budgets', {'name': 'Tuần', 'amount_limit': 100000, 'period': 'week'});
+      await a.post('/budgets', {'name': 'Tháng', 'amount_limit': 100000, 'period': 'month'});
+      final (s, f) = await a.get('/ai/forecast');
+      expect(s, 200);
+      expect(f['enough_data'], true);
+      final (_, bl) = await a.get('/budgets');
+      final starts = {for (final x in bl['items'] as List) x['id']: DateTime.parse(x['period_start'] as String)};
+      expect((f['items'] as List).length, 2);
+      for (final x in f['items'] as List) {
+        // Kết quả phụ thuộc ngày chạy test: tuần/tháng mới bắt đầu dưới 72 giờ thì phải chưa dự báo.
+        final early = DateTime.now().toUtc().difference(starts[x['budget_id']]!).inHours < 72;
+        expect(x['too_early'], early, reason: '${x['name']}');
+        if (early) {
+          expect(x['projected_total'], isNull);
+          expect(x['will_exceed'], false);
+        } else {
+          expect(x['projected_total'], isNotNull);
+        }
+      }
     });
   });
 

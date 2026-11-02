@@ -150,7 +150,8 @@ class _WalletHistory extends StatelessWidget {
   final Wallet w;
   const _WalletHistory({required this.w});
   @override
-  Widget build(BuildContext context) => TransactionsScreen(initialWalletId: w.id, title: w.name, standalone: true);
+  Widget build(BuildContext context) =>
+      TransactionsScreen(initialWalletId: w.id, title: w.name, standalone: true, fixedWallet: true);
 }
 
 class _WalletForm extends StatefulWidget {

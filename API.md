@@ -44,15 +44,15 @@ Khi có lỗi, server trả về dạng: `{"error": {"code": "...", "message": "
 | GET | /categories?include_hidden=true | Danh sách danh mục. |
 | POST | /categories | `{name, type, icon?, color?}`. Tên không trùng trong cùng loại. |
 | PATCH | /categories/:id | `{name?, icon?, color?, is_hidden?}`. Danh mục mặc định chỉ được đổi `is_hidden`. |
-| DELETE | /categories/:id?move_to=:id2 | Nếu danh mục đang có giao dịch thì bắt buộc gửi `move_to` (danh mục cùng loại) để chuyển giao dịch sang. Giao dịch đã xóa (không còn hiển thị) được chuyển theo; nếu chỉ còn loại này thì chuyển sang "Chi khác"/"Thu khác" mà không cần `move_to`. |
+| DELETE | /categories/:id?move_to=:id2 | Nếu danh mục đang có giao dịch thì bắt buộc gửi `move_to` (danh mục cùng loại) để chuyển giao dịch sang. Giao dịch đã xóa (không còn hiển thị) được chuyển theo; nếu chỉ còn loại này thì chuyển sang "Chi khác"/"Thu khác" mà không cần `move_to`. Không gửi `move_to` mà danh mục là danh mục duy nhất của một ngân sách thì trả 409 `category_in_budget` (kèm tên ngân sách), cần sửa hoặc xóa ngân sách đó trước. |
 
 ## Giao dịch (UC06, UC07, UC08)
 | Phương thức | Đường dẫn | Mô tả |
 |---|---|---|
 | GET | /transactions | Tham số: `q` (tìm không dấu), `from`, `to`, `type`, `category_id`, `wallet_id`, `limit` (tối đa 50), `cursor`. Trả về `{items, next_cursor, totals}`. |
 | POST | /transactions | `{idempotency_key, type, amount, category_id, wallet_id, occurred_at?, note?, source?}`. Gửi trùng `idempotency_key` thì trả lại giao dịch cũ. Có thể trả kèm `warnings: ["over_balance"]`. |
-| GET | /transactions/:id | Chi tiết giao dịch, gồm danh sách ảnh. |
-| PATCH | /transactions/:id | Sửa giao dịch. Server hoàn tác ảnh hưởng cũ rồi áp dụng giá trị mới lên số dư ví. |
+| GET | /transactions/:id | Chi tiết giao dịch, gồm danh sách ảnh. Giao dịch đã xóa mềm vẫn xem được theo mã, khi đó `deleted_at` khác null (danh sách GET /transactions không trả về giao dịch đã xóa). |
+| PATCH | /transactions/:id | Sửa giao dịch. Server hoàn tác ảnh hưởng cũ rồi áp dụng giá trị mới lên số dư ví. Giao dịch hệ thống (`source = system`: số dư ban đầu, điều chỉnh số dư) không sửa được, trả 400; muốn đổi số dư thì dùng `POST /wallets/:id/adjust`. Giao dịch đã xóa trả 404. |
 | DELETE | /transactions/:id | Xóa mềm và hoàn lại số dư. |
 | POST | /transactions/:id/restore | Hoàn tác thao tác xóa. |
 | POST | /transactions/bulk-delete | `{ids: [...]}` xóa nhiều giao dịch (tối đa 100). |
@@ -82,7 +82,7 @@ Khi có lỗi, server trả về dạng: `{"error": {"code": "...", "message": "
 | GET | /ai/insights | Các thẻ gợi ý gần nhất (lấy từ cache). |
 | POST | /ai/insights/analyze | Phân tích ngay. Mỗi ngày được gọi giới hạn số lần (`AI_ANALYZE_PER_DAY`). Tháng hiện tại chưa có khoản chi nào thì trả 400 `not_enough_data`, không trừ lượt và giữ nguyên thẻ cũ. |
 | PATCH | /ai/insights/:id | `{status: acted/dismissed}` |
-| GET | /ai/forecast | Dự báo cuối kỳ cho từng ngân sách. Cần ít nhất 2 tuần dữ liệu. |
+| GET | /ai/forecast | Dự báo cuối kỳ cho từng ngân sách. Cần ít nhất 2 tuần dữ liệu (`enough_data`); kỳ ngân sách mới bắt đầu dưới 3 ngày thì `too_early: true`. Khi chưa đủ điều kiện, `projected_total` và `projected_hit_at` là null, `will_exceed` là false. |
 
 ## Báo cáo (UC14)
 | Phương thức | Đường dẫn | Mô tả |

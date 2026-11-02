@@ -25,12 +25,16 @@ class TxTile extends StatelessWidget {
         title: Text(tx.title, maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: Row(children: [
           Flexible(
-            child: Text('${tx.categoryName} · ${tx.walletName}',
-                maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: context.muted, fontSize: 12.5)),
+            // Một dòng duy nhất, quá dài thì có "…" (không tràn trên màn hình hẹp).
+            // Danh sách không chia nhóm theo ngày thì ngày giờ đứng đầu để luôn nhìn thấy.
+            child: Text(
+                showDate
+                    ? '${fmtDayMonth(tx.occurredAt)} ${fmtTime(tx.occurredAt)} · ${tx.categoryName} · ${tx.walletName}'
+                    : '${tx.categoryName} · ${tx.walletName} · ${fmtTime(tx.occurredAt)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: context.muted, fontSize: 12.5)),
           ),
-          // Giờ (và ngày) để riêng để không bị cắt mất khi tên danh mục/ví dài.
-          Text(' · ${fmtTime(tx.occurredAt)}${showDate ? ' · ${fmtDayMonth(tx.occurredAt)}' : ''}',
-              maxLines: 1, style: TextStyle(color: context.muted, fontSize: 12.5)),
           if (tx.attachmentCount > 0) ...[
             const SizedBox(width: 6),
             Icon(Icons.photo_outlined, size: 14, color: context.muted),
@@ -41,6 +45,15 @@ class TxTile extends StatelessWidget {
             Icon(Icons.auto_awesome, size: 13, color: context.muted),
           ],
         ]),
-        trailing: Money(tx.signed, colored: true, sign: true, style: const TextStyle(fontWeight: FontWeight.w700)),
+        // Số tiền chiếm tối đa ~35% chiều ngang; chữ lớn trên màn hình hẹp thì thu nhỏ lại,
+        // để phần tên và dòng phụ (biểu tượng ảnh, AI) luôn còn chỗ.
+        trailing: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.35),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Money(tx.signed, colored: true, sign: true, style: const TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ),
       );
 }

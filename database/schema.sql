@@ -298,7 +298,7 @@ CREATE TABLE ai_insights (
 CREATE INDEX ix_insights_user_period ON ai_insights (user_id, period_start DESC);
 
 -- ---------------------------------------------------------------------
--- 13. ai_usage: đếm lượt gọi AI mỗi ngày để giới hạn (UC11, UC12)
+-- 13. ai_usage: đếm lượt gọi AI mỗi ngày để giới hạn (UC11, UC12, UC13)
 -- ---------------------------------------------------------------------
 CREATE TABLE ai_usage (
   user_id     UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,

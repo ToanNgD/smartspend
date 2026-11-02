@@ -88,6 +88,9 @@ class AlertService {
       final totalDays = end.difference(start).inMinutes / 1440;
       final rate = spent / elapsedDays;
       final projected = (rate * totalDays).round();
+      // Kỳ mới bắt đầu dưới 3 ngày: số liệu quá ít, nhân lên cả kỳ dễ báo nhầm -> chưa dự báo (6.3).
+      final tooEarly = now.difference(start).inHours < 72;
+      final ok = enough && !tooEarly;
       String? hitDate;
       if (spent < limit && projected > limit && rate > 0) {
         final d = start.add(Duration(minutes: (limit / rate * 1440).ceil()));
@@ -98,12 +101,13 @@ class AlertService {
         'name': b['name'],
         'period': b['period'],
         'enough_data': enough,
+        'too_early': tooEarly,
         'spent': spent,
         'amount_limit': limit,
         'daily_rate': rate.round(),
-        'projected_total': enough ? projected : null,
-        'projected_hit_at': enough ? hitDate : null,
-        'will_exceed': enough && projected > limit,
+        'projected_total': ok ? projected : null,
+        'projected_hit_at': ok ? hitDate : null,
+        'will_exceed': ok && projected > limit,
       };
     }).toList();
   }

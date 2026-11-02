@@ -10,6 +10,7 @@ import 'package:smartspend/core/format.dart';
 import 'package:smartspend/core/images.dart';
 import 'package:smartspend/core/vault.dart';
 import 'package:smartspend/models/models.dart';
+import 'package:smartspend/screens/ai_screen.dart';
 import 'package:smartspend/screens/auth_screens.dart';
 import 'package:smartspend/screens/lock_screens.dart';
 import 'package:smartspend/widgets/tx_editor.dart';
@@ -41,6 +42,14 @@ void main() {
     expect(passwordRule('abcdefgh'), isNotNull);
     expect(passwordRule('12345678'), isNotNull);
     expect(passwordRule('matkhau123'), isNull);
+  });
+
+  test('chế độ ẩn số tiền che số tiền trong thẻ gợi ý, giữ phần trăm và ngày', () {
+    expect(maskMoneyText('Kỳ này bạn đã chi 1.250.000đ, tháng trước 980.000đ.'), 'Kỳ này bạn đã chi ••••••, tháng trước ••••••.');
+    expect(maskMoneyText('Đặt hạn mức 900.000đ/tháng, tiết kiệm khoảng 1,2 triệu hoặc 50k'),
+        'Đặt hạn mức ••••••/tháng, tiết kiệm khoảng •••••• hoặc ••••••');
+    const keep = 'Chi Ăn uống tăng 25% so với cùng kỳ; Thứ Hai chiếm 35%, 5 khoản, ngày 22/11, 3 đêm';
+    expect(maskMoneyText(keep), keep);
   });
 
   test('đọc JSON giao dịch và bản nháp AI', () {

@@ -35,7 +35,14 @@ class _AuthFrame extends StatelessWidget {
                       child: Image.asset('assets/images/logo.png', width: 48, height: 48),
                     ),
                     const SizedBox(width: 12),
-                    Text('SmartSpend', style: Theme.of(context).textTheme.titleLarge),
+                    // Chữ rất lớn trên màn hình hẹp: thu nhỏ tên app cho vừa một dòng.
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text('SmartSpend', style: Theme.of(context).textTheme.titleLarge),
+                      ),
+                    ),
                   ]),
                   const SizedBox(height: 28),
                   Text(title, style: Theme.of(context).textTheme.headlineSmall),

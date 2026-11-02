@@ -51,6 +51,8 @@ class Tx {
   final int amount, attachmentCount;
   final DateTime occurredAt;
   final String? note;
+  /// Thời điểm xóa mềm; khác null nghĩa là giao dịch đã bị xóa (chỉ gặp khi mở chi tiết theo mã).
+  final DateTime? deletedAt;
   final List<Attachment> attachments;
   Tx.fromJson(Map<String, dynamic> j)
       : id = j['id'],
@@ -59,6 +61,7 @@ class Tx {
         amount = _int(j['amount']),
         occurredAt = _dt(j['occurred_at']),
         note = j['note'],
+        deletedAt = _dtn(j['deleted_at']),
         walletId = j['wallet_id'],
         walletName = j['wallet_name'] ?? '',
         categoryId = j['category_id'],

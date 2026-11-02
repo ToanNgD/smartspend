@@ -102,7 +102,12 @@ class _SummaryCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Tổng số dư', style: TextStyle(color: onP.withValues(alpha: 0.8))),
         const SizedBox(height: 4),
-        Money(total, style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: onP)),
+        // Chữ lớn trên màn hình hẹp: thu nhỏ để số tiền nằm trên một dòng (không tách "đ" xuống dòng).
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Money(total, style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: onP)),
+        ),
         const SizedBox(height: 16),
         Row(children: [
           Expanded(child: _Stat(label: 'Thu tháng này', value: (m['income'] as num).toInt(), icon: Icons.south_west_rounded)),
@@ -111,7 +116,14 @@ class _SummaryCard extends StatelessWidget {
         const SizedBox(height: 12),
         Row(children: [
           Text('Chênh lệch: ', style: TextStyle(color: onP.withValues(alpha: 0.8))),
-          Money((m['net'] as num).toInt(), sign: true, style: TextStyle(color: onP, fontWeight: FontWeight.w700)),
+          // Chữ lớn trên màn hình hẹp: thu nhỏ số tiền cho vừa thay vì bị cắt.
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Money((m['net'] as num).toInt(), sign: true, style: TextStyle(color: onP, fontWeight: FontWeight.w700)),
+            ),
+          ),
         ]),
         if (exp != null) ...[
           const SizedBox(height: 4),
@@ -137,7 +149,11 @@ class _Stat extends StatelessWidget {
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: TextStyle(color: onP.withValues(alpha: 0.8), fontSize: 12)),
-          Money(value, style: TextStyle(color: onP, fontWeight: FontWeight.w700)),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Money(value, style: TextStyle(color: onP, fontWeight: FontWeight.w700)),
+          ),
         ]),
       ),
     ]);

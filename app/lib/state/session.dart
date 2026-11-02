@@ -108,11 +108,9 @@ class Session extends ChangeNotifier with WidgetsBindingObserver {
     obscured = false;
     if (tokens.accessToken == null) {
       final ok = await api.refresh();
-      if (!ok) {
-        // Không có mạng: vẫn vào app với dữ liệu đệm; nếu token bị thu hồi thì đăng xuất.
-        final rt = await tokens.readRefresh();
-        if (rt == null) return logout(message: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.');
-      }
+      // Server từ chối refresh token (hết hạn, bị thu hồi) thì phải đăng nhập lại;
+      // chỉ mất mạng thì vẫn vào app với dữ liệu đệm.
+      if (!ok && api.refreshRejected) return logout(message: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.');
     }
     _set(SessionStatus.ready);
     push.register();

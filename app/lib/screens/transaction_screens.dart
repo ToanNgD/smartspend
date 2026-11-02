@@ -26,6 +26,10 @@ class TransactionsScreen extends StatefulWidget {
   final DateTimeRange? initialRange;
   final String? title;
   final bool standalone;
+  /// Màn hình giao dịch của một ví / một danh mục (tiêu đề là tên ví, tên danh mục): bộ lọc không cho đổi
+  /// hay bỏ điều kiện đó, để danh sách luôn khớp tiêu đề.
+  final bool fixedWallet;
+  final bool fixedCategory;
   const TransactionsScreen(
       {super.key,
       this.initialCategoryId,
@@ -33,7 +37,9 @@ class TransactionsScreen extends StatefulWidget {
       this.initialType,
       this.initialRange,
       this.title,
-      this.standalone = false});
+      this.standalone = false,
+      this.fixedWallet = false,
+      this.fixedCategory = false});
   @override
   State<TransactionsScreen> createState() => _TransactionsScreenState();
 }
@@ -41,7 +47,17 @@ class TransactionsScreen extends StatefulWidget {
 class _Filter {
   String? type, categoryId, walletId;
   DateTimeRange? range;
-  bool get active => type != null || categoryId != null || walletId != null || range != null;
+  bool fixedWallet = false, fixedCategory = false;
+  /// Có điều kiện lọc do người dùng chọn (không tính điều kiện cố định của màn hình).
+  bool get active =>
+      (!fixedCategory && (type != null || categoryId != null)) || (!fixedWallet && walletId != null) || range != null;
+
+  /// "Bỏ lọc": giữ lại điều kiện cố định của màn hình.
+  void clear() {
+    if (!fixedCategory) type = categoryId = null;
+    if (!fixedWallet) walletId = null;
+    range = null;
+  }
 }
 
 class _TransactionsScreenState extends State<TransactionsScreen> {
@@ -65,6 +81,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     _filter.walletId = widget.initialWalletId;
     _filter.type = widget.initialType;
     _filter.range = widget.initialRange;
+    _filter.fixedWallet = widget.fixedWallet && widget.initialWalletId != null;
+    _filter.fixedCategory = widget.fixedCategory && widget.initialCategoryId != null;
     _scroll.addListener(() {
       if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 300) _more();
     });
@@ -130,6 +148,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     if (!mounted) return;
     final data = context.read<AppData>();
     final api = context.read<ApiClient>();
+    final messenger = ScaffoldMessenger.of(context);
     final ids = _selected.toList();
     try {
       await api.post('/transactions/bulk-delete', {'ids': ids});
@@ -139,12 +158,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           action: SnackBarAction(
               label: 'Hoàn tác',
               onPressed: () async {
+                var failed = 0;
+                Object? error;
                 for (final id in ids) {
                   try {
                     await api.post('/transactions/$id/restore');
-                  } catch (_) {}
+                  } catch (e) {
+                    failed++;
+                    error = e;
+                  }
                 }
                 await data.afterTxChange();
+                if (failed > 0) {
+                  messenger.showSnackBar(SnackBar(content: Text('Chưa hoàn tác được $failed giao dịch: $error')));
+                }
               }));
     } catch (e) {
       if (mounted) showError(context, e);
@@ -222,14 +249,25 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         if (_totals != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-            child: Row(children: [
-              Text('${_totals!['count']} giao dịch', style: TextStyle(color: context.muted, fontSize: 13)),
-              const Spacer(),
-              Text('Thu ', style: TextStyle(color: context.muted, fontSize: 13)),
-              Money((_totals!['income'] as num).toInt(), style: TextStyle(color: context.incomeColor, fontSize: 13, fontWeight: FontWeight.w600)),
-              Text('   Chi ', style: TextStyle(color: context.muted, fontSize: 13)),
-              Money((_totals!['expense'] as num).toInt(), style: TextStyle(color: context.expenseColor, fontSize: 13, fontWeight: FontWeight.w600)),
-            ]),
+            // Màn hình hẹp hoặc tổng tiền lớn thì phần Thu/Chi xuống dòng thay vì bị cắt.
+            child: SizedBox(
+              width: double.infinity,
+              child: Wrap(alignment: WrapAlignment.spaceBetween, spacing: 12, runSpacing: 2, children: [
+                Text('${_totals!['count']} giao dịch', style: TextStyle(color: context.muted, fontSize: 13)),
+                Wrap(spacing: 12, children: [
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text('Thu ', style: TextStyle(color: context.muted, fontSize: 13)),
+                    Money((_totals!['income'] as num).toInt(),
+                        style: TextStyle(color: context.incomeColor, fontSize: 13, fontWeight: FontWeight.w600)),
+                  ]),
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text('Chi ', style: TextStyle(color: context.muted, fontSize: 13)),
+                    Money((_totals!['expense'] as num).toInt(),
+                        style: TextStyle(color: context.expenseColor, fontSize: 13, fontWeight: FontWeight.w600)),
+                  ]),
+                ]),
+              ]),
+            ),
           ),
         Expanded(
           child: RefreshIndicator(
@@ -266,12 +304,23 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           child: Column(children: [
                             Padding(
                               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                              child: Row(children: [
-                                Expanded(child: Text(dayHeader(list.first.occurredAt), style: const TextStyle(fontWeight: FontWeight.w700))),
-                                if (inc > 0) Money(inc, sign: true, style: TextStyle(color: context.incomeColor, fontSize: 12.5)),
-                                if (inc > 0 && exp > 0) const SizedBox(width: 10),
-                                if (exp > 0) Money(-exp, style: TextStyle(color: context.expenseColor, fontSize: 12.5)),
-                              ]),
+                              // Chữ lớn hoặc màn hình hẹp: tổng thu/chi của ngày xuống dòng thay vì bị cắt.
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: Wrap(
+                                  alignment: WrapAlignment.spaceBetween,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  spacing: 10,
+                                  runSpacing: 2,
+                                  children: [
+                                    Text(dayHeader(list.first.occurredAt), style: const TextStyle(fontWeight: FontWeight.w700)),
+                                    Wrap(spacing: 10, children: [
+                                      if (inc > 0) Money(inc, sign: true, style: TextStyle(color: context.incomeColor, fontSize: 12.5)),
+                                      if (exp > 0) Money(-exp, style: TextStyle(color: context.expenseColor, fontSize: 12.5)),
+                                    ]),
+                                  ],
+                                ),
+                              ),
                             ),
                             for (final t in list)
                               TxTile(
@@ -316,19 +365,21 @@ class _FilterSheetState extends State<_FilterSheet> {
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Bộ lọc', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 16),
-        SegmentedButton<String?>(
-          segments: const [
-            ButtonSegment(value: null, label: Text('Tất cả')),
-            ButtonSegment(value: 'expense', label: Text('Chi')),
-            ButtonSegment(value: 'income', label: Text('Thu')),
-          ],
-          selected: {f.type},
-          onSelectionChanged: (s) => setState(() {
-            f.type = s.first;
-            if (f.categoryId != null && d.categoryById(f.categoryId)?.type != f.type && f.type != null) f.categoryId = null;
-          }),
-        ),
-        const SizedBox(height: 12),
+        if (!f.fixedCategory) ...[
+          SegmentedButton<String?>(
+            segments: const [
+              ButtonSegment(value: null, label: Text('Tất cả')),
+              ButtonSegment(value: 'expense', label: Text('Chi')),
+              ButtonSegment(value: 'income', label: Text('Thu')),
+            ],
+            selected: {f.type},
+            onSelectionChanged: (s) => setState(() {
+              f.type = s.first;
+              if (f.categoryId != null && d.categoryById(f.categoryId)?.type != f.type && f.type != null) f.categoryId = null;
+            }),
+          ),
+          const SizedBox(height: 12),
+        ],
         OutlinedButton.icon(
           icon: const Icon(Icons.date_range),
           label: Text(f.range == null ? 'Chọn khoảng ngày' : '${fmtDate(f.range!.start)} – ${fmtDate(f.range!.end)}'),
@@ -344,33 +395,41 @@ class _FilterSheetState extends State<_FilterSheet> {
             if (r != null) setState(() => f.range = r);
           },
         ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String?>(
-          initialValue: f.categoryId,
-          decoration: const InputDecoration(labelText: 'Danh mục'),
-          items: [
-            const DropdownMenuItem(value: null, child: Text('Tất cả danh mục')),
-            for (final c in cats) DropdownMenuItem(value: c.id, child: Text(c.name)),
-          ],
-          onChanged: (v) => setState(() => f.categoryId = v),
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String?>(
-          initialValue: f.walletId,
-          decoration: const InputDecoration(labelText: 'Ví'),
-          items: [
-            const DropdownMenuItem(value: null, child: Text('Tất cả ví')),
-            for (final w in d.wallets) DropdownMenuItem(value: w.id, child: Text(w.name)),
-          ],
-          onChanged: (v) => setState(() => f.walletId = v),
-        ),
+        // isExpanded + cắt "…": tên danh mục/ví dài không làm tràn ô chọn.
+        if (!f.fixedCategory) ...[
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String?>(
+            initialValue: f.categoryId,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Danh mục'),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('Tất cả danh mục')),
+              for (final c in cats)
+                DropdownMenuItem(value: c.id, child: Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
+            ],
+            onChanged: (v) => setState(() => f.categoryId = v),
+          ),
+        ],
+        if (!f.fixedWallet) ...[
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String?>(
+            initialValue: f.walletId,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Ví'),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('Tất cả ví')),
+              for (final w in d.wallets)
+                DropdownMenuItem(value: w.id, child: Text(w.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
+            ],
+            onChanged: (v) => setState(() => f.walletId = v),
+          ),
+        ],
         const SizedBox(height: 20),
         Row(children: [
           Expanded(
             child: OutlinedButton(
               onPressed: () {
-                f.type = f.categoryId = f.walletId = null;
-                f.range = null;
+                f.clear();
                 Navigator.pop(context);
               },
               child: const Text('Bỏ lọc'),
@@ -440,7 +499,9 @@ class _TxDetailScreenState extends State<TxDetailScreen> {
             try {
               await api.post('/transactions/${widget.id}/restore');
               await data.afterTxChange();
-            } catch (_) {}
+            } catch (e) {
+              messenger.showSnackBar(SnackBar(content: Text('Chưa hoàn tác được: $e')));
+            }
           },
         ),
       ));
@@ -502,7 +563,9 @@ class _TxDetailScreenState extends State<TxDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final t = _tx;
-    final canEdit = t != null && t.source != 'system';
+    // Giao dịch đã bị xóa (vd mở từ một cảnh báo cũ): chỉ xem, không sửa, xóa hay thêm ảnh.
+    final deleted = t?.deletedAt != null;
+    final canEdit = t != null && t.source != 'system' && !deleted;
     return Scaffold(
       appBar: AppBar(title: const Text('Chi tiết giao dịch'), actions: [
         if (canEdit)
@@ -514,7 +577,7 @@ class _TxDetailScreenState extends State<TxDetailScreen> {
               if (changed == true) _load();
             },
           ),
-        if (t != null) IconButton(tooltip: 'Xóa', icon: const Icon(Icons.delete_outline), onPressed: _delete),
+        if (t != null && !deleted) IconButton(tooltip: 'Xóa', icon: const Icon(Icons.delete_outline), onPressed: _delete),
       ]),
       body: t == null
           ? Center(
@@ -525,6 +588,18 @@ class _TxDetailScreenState extends State<TxDetailScreen> {
                       action: OutlinedButton(onPressed: _retry, child: const Text('Thử lại')))
                   : const CircularProgressIndicator())
           : ListView(padding: const EdgeInsets.all(16), children: [
+              if (deleted)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Card(
+                    color: context.warnColor.withValues(alpha: 0.12),
+                    child: const ListTile(
+                      leading: Icon(Icons.delete_outline),
+                      title: Text('Giao dịch này đã bị xóa'),
+                      subtitle: Text('Không còn được tính vào số dư, ngân sách và báo cáo.'),
+                    ),
+                  ),
+                ),
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(20),

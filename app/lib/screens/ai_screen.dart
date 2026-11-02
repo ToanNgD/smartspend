@@ -63,13 +63,17 @@ class _AiScreenState extends State<AiScreen> {
   Future<void> _act(Insight i) async {
     final a = i.action!;
     final cat = context.read<AppData>().categories.where((c) => c.type == 'expense' && c.name.toLowerCase() == '${a['category']}'.toLowerCase()).firstOrNull;
+    // Danh mục đã bị xóa hoặc đổi tên sau khi có gợi ý: không mở form (tránh tạo nhầm ngân sách cho toàn bộ khoản chi).
+    if (cat == null) {
+      return showInfo(context, 'Không còn danh mục "${a['category']}" (có thể đã đổi tên hoặc bị xóa). Hãy tạo ngân sách thủ công.');
+    }
     final ok = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => BudgetFormScreen(
           presetName: 'Ngân sách ${a['category']}',
           presetAmount: (a['amount'] as num?)?.toInt(),
-          presetCategoryId: cat?.id,
+          presetCategoryId: cat.id,
         ),
       ),
     );
@@ -144,12 +148,23 @@ class _AiScreenState extends State<AiScreen> {
   }
 }
 
+/// Số tiền nằm trong câu chữ của thẻ gợi ý (1.250.000đ, 1,2 triệu, 50k...): che khi bật chế độ ẩn số tiền.
+/// Không đụng tới phần trăm, ngày, số lần.
+final _moneyText = RegExp(
+    r'\d{1,3}(?:[.,]\d{3})+(?:\s*(?:đồng|đ|₫))?|\d+(?:[.,]\d+)?\s*(?:đồng|đ|₫|k|nghìn|ngàn|triệu|tr|tỷ)(?![\p{L}\d])',
+    unicode: true,
+    caseSensitive: false);
+
+String maskMoneyText(String s) => s.replaceAll(_moneyText, hiddenMoney);
+
 class _InsightCard extends StatelessWidget {
   final Insight i;
   final void Function(Insight) onAct, onDismiss;
   const _InsightCard({required this.i, required this.onAct, required this.onDismiss});
   @override
   Widget build(BuildContext context) {
+    final hide = context.select<AppData, bool>((d) => d.hideAmounts);
+    String show(String s) => hide ? maskMoneyText(s) : s;
     final (icon, color, label) = switch (i.kind) {
       'trend' => (Icons.trending_up_rounded, context.cs.primary, 'Xu hướng'),
       'habit' => (Icons.calendar_today_rounded, context.warnColor, 'Thói quen'),
@@ -170,16 +185,21 @@ class _InsightCard extends StatelessWidget {
             IconButton(visualDensity: VisualDensity.compact, tooltip: 'Ẩn gợi ý', onPressed: () => onDismiss(i), icon: const Icon(Icons.close, size: 18)),
           ]),
           const SizedBox(height: 8),
-          // Văn bản thuần, không render HTML.
-          Text(i.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15.5)),
-          const SizedBox(height: 6),
-          Text(i.content, style: TextStyle(color: context.cs.onSurface.withValues(alpha: 0.85), height: 1.4)),
+          // Văn bản thuần, không render HTML. Đang ẩn số tiền thì chạm vào để hiện (như các số tiền khác).
+          GestureDetector(
+            onTap: hide ? () => context.read<AppData>().toggleHide() : null,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(show(i.title), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15.5)),
+              const SizedBox(height: 6),
+              Text(show(i.content), style: TextStyle(color: context.cs.onSurface.withValues(alpha: 0.85), height: 1.4)),
+            ]),
+          ),
           if (a != null && a['type'] == 'set_budget' && i.status != 'acted') ...[
             const SizedBox(height: 12),
             FilledButton.tonalIcon(
               onPressed: () => onAct(i),
               icon: const Icon(Icons.track_changes_rounded, size: 18),
-              label: Text('Đặt ngân sách ${a['category']} ${vnd((a['amount'] as num?) ?? 0)}'),
+              label: Text('Đặt ngân sách ${a['category']} ${hide ? hiddenMoney : vnd((a['amount'] as num?) ?? 0)}'),
             ),
           ],
         ]),
@@ -204,21 +224,30 @@ class _Forecasts extends StatelessWidget {
           return Card(
             child: Column(children: [
               for (final f in items)
-                ListTile(
-                  leading: Icon(f['will_exceed'] == true ? Icons.warning_amber_rounded : Icons.check_circle_outline,
-                      color: f['will_exceed'] == true ? context.warnColor : context.incomeColor),
-                  title: Text(f['name']),
-                  subtitle: Row(children: [
-                    const Text('Dự kiến '),
-                    Money((f['projected_total'] as num?) ?? 0, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    const Text(' / '),
-                    Money((f['amount_limit'] as num?) ?? 0),
-                  ]),
-                  trailing: f['projected_hit_at'] == null
-                      ? null
-                      : Text('chạm ngày\n${fmtDate(DateTime.parse(f['projected_hit_at'])).substring(0, 5)}',
-                          textAlign: TextAlign.right, style: TextStyle(color: context.warnColor, fontSize: 12)),
-                ),
+                // Kỳ mới bắt đầu dưới 3 ngày: chưa dự báo (số liệu quá ít, dễ báo nhầm).
+                if (f['too_early'] == true || f['projected_total'] == null)
+                  ListTile(
+                    leading: Icon(Icons.hourglass_top_rounded, color: context.muted),
+                    title: Text(f['name']),
+                    subtitle: const Text('Kỳ mới bắt đầu, chưa đủ ngày để dự báo'),
+                  )
+                else
+                  ListTile(
+                    leading: Icon(f['will_exceed'] == true ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+                        color: f['will_exceed'] == true ? context.warnColor : context.incomeColor),
+                    title: Text(f['name']),
+                    // Wrap: màn hình hẹp thì phần "/ hạn mức" xuống dòng, không đè lên ngày dự kiến bên phải.
+                    subtitle: Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
+                      const Text('Dự kiến '),
+                      Money((f['projected_total'] as num?) ?? 0, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      const Text(' / '),
+                      Money((f['amount_limit'] as num?) ?? 0),
+                    ]),
+                    trailing: f['projected_hit_at'] == null
+                        ? null
+                        : Text('chạm ngày\n${fmtDate(DateTime.parse(f['projected_hit_at'])).substring(0, 5)}',
+                            textAlign: TextAlign.right, style: TextStyle(color: context.warnColor, fontSize: 12)),
+                  ),
             ]),
           );
         },

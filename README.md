@@ -85,7 +85,7 @@ Nếu Gradle báo lỗi "different roots" (code ở ổ D, Flutter ở ổ C): `
 
 ```bash
 # Server: chạy server trước, sau đó chạy lệnh dưới.
-# - test/api_test.dart: 20 nhóm ca kiểm thử API, gồm cả các ca bảo mật như IDOR, khóa đăng nhập,
+# - test/api_test.dart: 23 ca kiểm thử API (12 nhóm), gồm cả các ca bảo mật như IDOR, khóa đăng nhập,
 #   refresh token bị dùng lại, tệp giả dạng ảnh, EXIF.
 # - test/client_ip_test.dart: cách lấy IP thật khi chạy sau Cloudflare/Render (không cần server).
 # - test/alert_phrase_test.dart: kiểm tra câu cảnh báo do AI viết (không có số tiền, đúng tên, đúng ngày).
@@ -136,6 +136,8 @@ Thông báo đẩy chỉ có trên **Android**. iPhone cần tài khoản Apple 
    - Server cloud: trên Render, vào **Environment**, thêm biến `FCM_SERVICE_ACCOUNT_JSON` và dán **toàn bộ nội dung** file JSON vào.
    - Server trên máy tính: ghi đường dẫn file vào `.env`, ví dụ `FCM_SERVICE_ACCOUNT=C:/Users/ten/Downloads/smartspend-firebase-adminsdk.json`.
 5. Khởi động lại server. Log phải có dòng `Thông báo đẩy: bật`.
+
+Khi app đang mở, Firebase không tự hiện thông báo trên Android nên app tự hiện thông báo hệ thống (cùng kênh "Cảnh báo chi tiêu"); bấm vào thông báo thì mở màn hình tương ứng.
 
 ### 3.3. Thử trên điện thoại thật
 

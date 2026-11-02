@@ -29,7 +29,13 @@ class AiService {
         'WHERE ai_usage.call_count < @lim RETURNING call_count',
         {'u': userId, 'f': feature, 'lim': limit});
     if (r == null) {
-      throw ApiError(429, 'ai_limit', 'Bạn đã dùng hết lượt AI hôm nay, vui lòng thử lại vào ngày mai');
+      throw ApiError(
+          429,
+          'ai_limit',
+          feature == 'parse'
+              // UC11 (1a): hết lượt thì gợi ý nhập thủ công.
+              ? 'Bạn đã dùng hết lượt nhập bằng AI hôm nay. Hãy nhập thủ công bằng nút + hoặc thử lại vào ngày mai.'
+              : 'Bạn đã dùng hết lượt phân tích hôm nay, vui lòng thử lại vào ngày mai.');
     }
     return limit - (r['call_count'] as int);
   }
@@ -456,7 +462,8 @@ QUY TẮC:
     }
     final expenseCats = await db.q(
         "SELECT name FROM categories WHERE user_id = @u AND type = 'expense'", {'u': userId});
-    final catNames = expenseCats.map((c) => fold(c['name'] as String)).toSet();
+    // Tên không dấu -> tên gốc: AI có viết lệch dấu/hoa thường thì hành động vẫn mang đúng tên danh mục thật.
+    final catNames = {for (final c in expenseCats) fold(c['name'] as String): c['name'] as String};
 
     var cards = <Map<String, dynamic>>[];
     if ((agg['total_expense'] as int) > 0 && gemini.enabled) {
@@ -474,8 +481,9 @@ QUY TẮC:
           final a = x['action'];
           if (a is Map && a['type'] == 'set_budget' && a['category'] is String && a['amount'] is int) {
             final amt = a['amount'] as int;
-            if (catNames.contains(fold(a['category'] as String)) && amt >= 10000 && amt <= 1000000000) {
-              action = {'type': 'set_budget', 'category': sanitize(a['category'] as String), 'amount': (amt ~/ 1000) * 1000, 'period': 'month'};
+            final name = catNames[fold(a['category'] as String)];
+            if (name != null && amt >= 10000 && amt <= 1000000000) {
+              action = {'type': 'set_budget', 'category': name, 'amount': (amt ~/ 1000) * 1000, 'period': 'month'};
             }
           }
           cards.add({

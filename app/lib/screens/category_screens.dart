@@ -47,13 +47,15 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                   if (c.isHidden) 'Đang ẩn',
                   '${c.txCount} giao dịch',
                 ].join(' · ')),
-                trailing: c.isDefault
-                    ? IconButton(
-                        tooltip: c.isHidden ? 'Hiện' : 'Ẩn',
-                        icon: Icon(c.isHidden ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                        onPressed: () => _toggleHidden(context, c),
-                      )
-                    : const Icon(Icons.chevron_right),
+                // Mọi danh mục đều ẩn/hiện được (UC05 - 2b); danh mục riêng bấm vào để sửa hoặc xóa.
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  IconButton(
+                    tooltip: c.isHidden ? 'Hiện' : 'Ẩn',
+                    icon: Icon(c.isHidden ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                    onPressed: () => _toggleHidden(context, c),
+                  ),
+                  if (!c.isDefault) const Icon(Icons.chevron_right),
+                ]),
                 onTap: c.isDefault ? null : () => _open(context, edit: c),
               ),
           ]),

@@ -51,6 +51,12 @@ class ApiClient {
               return h.next(e2);
             }
           }
+          if (!refreshRejected) {
+            // Không làm mới được vì mất mạng hoặc server lỗi tạm thời: giữ phiên (không đăng xuất),
+            // báo lỗi kết nối để người dùng thử lại.
+            return h.next(DioException(requestOptions: e.requestOptions, type: DioExceptionType.connectionError, error: e.error));
+          }
+          // Server từ chối refresh token (hết hạn, bị thu hồi): kết thúc phiên (UC02 - 6a1).
           onSessionExpired?.call();
         }
         h.next(e);
@@ -58,18 +64,30 @@ class ApiClient {
     ));
   }
 
+  /// Lần làm mới gần nhất bị từ chối hẳn: server trả 401 (refresh token hết hạn, không hợp lệ, bị thu hồi)
+  /// hoặc máy không còn refresh token. Mất mạng hay server lỗi tạm thời thì là false: phiên vẫn còn.
+  bool refreshRejected = false;
+
   /// Xin cặp token mới bằng refresh token. Gộp các lần gọi đồng thời thành một
   /// (refresh token xoay vòng: gửi trùng sẽ bị server coi là token bị đánh cắp).
   Future<bool> refresh() {
     return _refreshing ??= () async {
       try {
         final rt = await tokens.readRefresh();
-        if (rt == null) return false;
+        if (rt == null) {
+          refreshRejected = true;
+          return false;
+        }
         final r = await dio.post('/auth/refresh',
             data: {'refresh_token': rt}, options: Options(extra: {'noAuth': true}));
         await tokens.save(r.data['access_token'] as String, r.data['refresh_token'] as String);
+        refreshRejected = false;
         return true;
+      } on DioException catch (e) {
+        refreshRejected = e.response?.statusCode == 401;
+        return false;
       } catch (_) {
+        refreshRejected = false;
         return false;
       } finally {
         Future.microtask(() => _refreshing = null);

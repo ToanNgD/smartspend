@@ -57,6 +57,9 @@ class _CategoryReportCardState extends State<CategoryReportCard> {
                 ('Khác', (other['amount'] as num).toInt(), (other['percent'] as num).toDouble(), Colors.grey, 'dots', null),
             ];
             final shown = widget.compact ? slices.take(4).toList() : slices;
+            // Thẻ rút gọn chỉ liệt kê 4 mục: báo còn bao nhiêu danh mục chưa hiện (mục "Khác" gồm nhiều danh mục nhỏ).
+            final otherCount = ((other?['categories'] as List?) ?? const []).length;
+            final hiddenCount = slices.skip(shown.length).fold<int>(0, (n, x) => n + (x.$6 == null ? otherCount : 1));
             // Khoảng ngày của kỳ đang xem (ngày cuối tính cả ngày đó).
             final from = DateTime.tryParse('${r['from']}');
             final to = DateTime.tryParse('${r['to']}');
@@ -93,7 +96,7 @@ class _CategoryReportCardState extends State<CategoryReportCard> {
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: Column(children: [
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     for (final x in shown)
                       InkWell(
                         onTap: widget.compact ? null : () => open(x),
@@ -106,6 +109,11 @@ class _CategoryReportCardState extends State<CategoryReportCard> {
                             Text('${x.$3.toStringAsFixed(0)}%', style: TextStyle(color: context.muted)),
                           ]),
                         ),
+                      ),
+                    if (hiddenCount > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, left: 18),
+                        child: Text('+$hiddenCount danh mục khác', style: TextStyle(color: context.muted, fontSize: 12.5)),
                       ),
                   ]),
                 ),
@@ -142,6 +150,7 @@ class _CategoryReportCardState extends State<CategoryReportCard> {
                 initialRange: range,
                 title: name,
                 standalone: true,
+                fixedCategory: true,
               )));
 
   /// Danh sách các danh mục nhỏ (dưới 3%) đã gộp vào "Khác"; bấm từng mục để xem giao dịch.
@@ -157,7 +166,7 @@ class _CategoryReportCardState extends State<CategoryReportCard> {
           child: ListView(shrinkWrap: true, padding: const EdgeInsets.fromLTRB(16, 0, 16, 16), children: [
             Text('Các danh mục trong "Khác"', style: Theme.of(sheet).textTheme.titleMedium),
             const SizedBox(height: 4),
-            Text('Mỗi danh mục dưới 3% tổng của kỳ nên được gộp chung trên biểu đồ.',
+            Text('Các danh mục chiếm dưới 3% tổng của kỳ được gộp chung trên biểu đồ.',
                 style: TextStyle(color: sheet.muted, fontSize: 12)),
             const SizedBox(height: 8),
             for (final c in cats)
@@ -242,10 +251,12 @@ class _ReportScreenState extends State<ReportScreen> {
         ]),
         DropdownButtonFormField<String?>(
           initialValue: q.walletId,
+          isExpanded: true,
           decoration: const InputDecoration(labelText: 'Ví', isDense: true),
           items: [
             const DropdownMenuItem(value: null, child: Text('Tất cả ví')),
-            for (final w in d.wallets) DropdownMenuItem(value: w.id, child: Text(w.name)),
+            for (final w in d.wallets)
+              DropdownMenuItem(value: w.id, child: Text(w.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
           ],
           onChanged: (v) => setState(() => q = v == null ? q.copy(clearWallet: true) : q.copy(walletId: v)),
         ),

@@ -114,6 +114,23 @@ class CategoryRoutes {
         throw ApiError(409, 'category_in_use', 'Danh mục đang có giao dịch, hãy chọn danh mục để chuyển sang',
             {'transaction_count': n});
       }
+      // Danh mục là phạm vi duy nhất của một ngân sách: xóa đi thì ngân sách không còn danh mục nào
+      // (đã chi luôn 0đ, không bao giờ cảnh báo) -> bắt người dùng sửa hoặc xóa ngân sách trước.
+      // Có move_to thì phạm vi ngân sách được chuyển sang danh mục mới nên không chặn.
+      if (moveTo == null) {
+        final sole = await s.rows(
+            'SELECT b.name FROM budgets b JOIN budget_categories bc ON bc.budget_id = b.id '
+            'WHERE bc.category_id = @id AND b.user_id = @u '
+            'AND NOT EXISTS (SELECT 1 FROM budget_categories o WHERE o.budget_id = b.id AND o.category_id <> @id) '
+            'ORDER BY b.name',
+            {'id': id, 'u': req.userId});
+        if (sole.isNotEmpty) {
+          final names = sole.map((r) => '"${r['name']}"').join(', ');
+          throw ApiError(409, 'category_in_budget',
+              'Danh mục đang là danh mục duy nhất của ngân sách $names. Hãy sửa hoặc xóa ngân sách đó trước.',
+              {'budgets': sole.map((r) => r['name']).toList()});
+        }
+      }
       String? target;
       if (moveTo != null) {
         if (moveTo == id) throw ApiError.badRequest('Danh mục chuyển sang phải khác danh mục bị xóa');

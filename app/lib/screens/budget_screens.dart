@@ -43,25 +43,43 @@ class BudgetCard extends StatelessWidget {
               ),
             const SizedBox(height: 12),
             Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Money(b.spent, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
-              Text('  / ', style: TextStyle(color: context.muted)),
-              Money(b.limit, style: TextStyle(color: context.muted)),
-              const Spacer(),
+              // Số tiền dài (màn hình hẹp) thì thu nhỏ cho vừa một dòng thay vì bị cắt.
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.bottomLeft,
+                  child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Money(b.spent, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+                    Text('  / ', style: TextStyle(color: context.muted)),
+                    Money(b.limit, style: TextStyle(color: context.muted)),
+                  ]),
+                ),
+              ),
+              const SizedBox(width: 8),
               Text('${b.percent.toStringAsFixed(0)}%', style: const TextStyle(fontWeight: FontWeight.w700)),
             ]),
             const SizedBox(height: 8),
             BudgetBar(percent: b.percent),
             const SizedBox(height: 8),
-            Row(children: [
-              Text(over ? 'Vượt ' : 'Còn lại ', style: TextStyle(color: context.muted, fontSize: 12.5)),
-              Money(b.remaining.abs(),
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: over ? context.expenseColor : null)),
-              const SizedBox(width: 8),
-              const Spacer(),
-              Text('${b.daysLeft} ngày · tối đa ', style: TextStyle(color: context.muted, fontSize: 12.5)),
-              Money(b.dailyAllowance, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
-              Text('/ngày', style: TextStyle(color: context.muted, fontSize: 12.5)),
-            ]),
+            // Màn hình hẹp không đủ chỗ cho cả hai phần thì phần "số ngày · tối đa" xuống dòng.
+            SizedBox(
+              width: double.infinity,
+              child: Wrap(alignment: WrapAlignment.spaceBetween, spacing: 8, runSpacing: 4, children: [
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text(over ? 'Vượt ' : 'Còn lại ', style: TextStyle(color: context.muted, fontSize: 12.5)),
+                  Money(b.remaining.abs(),
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: over ? context.expenseColor : null)),
+                ]),
+                Wrap(children: [
+                  Text('${b.daysLeft} ngày · ', style: TextStyle(color: context.muted, fontSize: 12.5)),
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text('tối đa ', style: TextStyle(color: context.muted, fontSize: 12.5)),
+                    Money(b.dailyAllowance, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                    Text('/ngày', style: TextStyle(color: context.muted, fontSize: 12.5)),
+                  ]),
+                ]),
+              ]),
+            ),
           ]),
         ),
       ),
@@ -254,6 +272,13 @@ class _ForecastLine extends StatelessWidget {
           }
           final f = (data['items'] as List).map((e) => Map<String, dynamic>.from(e)).where((e) => e['budget_id'] == budgetId).firstOrNull;
           if (f == null) return const SizedBox();
+          // Kỳ mới bắt đầu dưới 3 ngày: chưa dự báo vì số liệu quá ít, dễ báo nhầm (giống quy tắc cảnh báo dự báo).
+          if (f['too_early'] == true || f['projected_total'] == null) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text('Dự báo: kỳ mới bắt đầu, chưa đủ ngày để dự báo.', style: TextStyle(color: context.muted, fontSize: 12.5)),
+            );
+          }
           final hit = f['projected_hit_at'] == null ? null : DateTime.parse(f['projected_hit_at']).toLocal();
           return Padding(
             padding: const EdgeInsets.only(top: 12),
@@ -261,7 +286,7 @@ class _ForecastLine extends StatelessWidget {
               color: (f['will_exceed'] == true ? context.warnColor : context.incomeColor).withValues(alpha: 0.10),
               child: ListTile(
                 leading: Icon(f['will_exceed'] == true ? Icons.trending_up : Icons.check_circle_outline),
-                title: Row(children: [
+                title: Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
                   const Text('Dự kiến cuối kỳ: '),
                   Money((f['projected_total'] as num).toInt(), style: const TextStyle(fontWeight: FontWeight.w700)),
                 ]),
@@ -297,6 +322,8 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   late String _period = widget.edit?.period ?? 'month';
   late String _scope = widget.edit?.scope ?? (widget.presetCategoryId != null ? 'categories' : 'all');
   late final Set<String> _cats = {...?widget.edit?.categoryIds, if (widget.presetCategoryId != null) widget.presetCategoryId!};
+  // Danh mục đang ẩn nhưng đã nằm trong phạm vi lúc mở form: vẫn hiện để người dùng thấy và bỏ chọn được.
+  late final Set<String> _initialCats = {..._cats};
 
   @override
   void dispose() {
@@ -339,7 +366,11 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   @override
   Widget build(BuildContext context) {
     final editing = widget.edit != null;
-    final cats = context.watch<AppData>().visibleCategories('expense');
+    final d = context.watch<AppData>();
+    final cats = [
+      ...d.visibleCategories('expense'),
+      ...d.categories.where((c) => c.type == 'expense' && c.isHidden && _initialCats.contains(c.id)),
+    ];
     return Scaffold(
       appBar: AppBar(title: Text(editing ? 'Sửa ngân sách' : 'Tạo ngân sách')),
       body: ListView(
@@ -376,7 +407,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
           Wrap(spacing: 8, runSpacing: 8, children: [
             for (final c in cats)
               FilterChip(
-                avatar: Icon(iconMap[c.icon], size: 18, color: hexColor(c.color)),
+                avatar: Icon(c.isHidden ? Icons.visibility_off_outlined : iconMap[c.icon], size: 18, color: hexColor(c.color)),
                 label: Text(c.name),
                 selected: _cats.contains(c.id),
                 onSelected: (v) => setState(() => v ? _cats.add(c.id) : _cats.remove(c.id)),

@@ -83,18 +83,24 @@ class AuthRoutes {
         throw ApiError(429, 'login_locked', _lockedMessage);
       }
       _unknownEmailFails.hit(email);
+      // Lần sai thứ 5 báo bị khóa ngay, giống hệt email có thật.
+      if (_unknownEmailFails.count(email) >= 5) {
+        throw ApiError(429, 'login_locked', _lockedMessage);
+      }
       throw ApiError(401, 'invalid_credentials', _genericLoginError);
     }
     if (u['locked'] == true) throw ApiError(429, 'login_locked', _lockedMessage);
 
     final ok = await verifyPassword(pw, u['password_hash'] as String);
     if (!ok) {
-      await c.db.exec(
+      final r = await c.db.one(
           'UPDATE users SET '
           'failed_login_count = CASE WHEN failed_login_count + 1 >= 5 THEN 0 ELSE failed_login_count + 1 END, '
           "locked_until = CASE WHEN failed_login_count + 1 >= 5 THEN now() + interval '15 minutes' ELSE locked_until END "
-          'WHERE id = @id',
+          'WHERE id = @id RETURNING (locked_until IS NOT NULL AND locked_until > now()) AS locked',
           {'id': u['id']});
+      // Lần sai thứ 5 vừa khóa tài khoản: báo luôn để người dùng không thử tiếp vô ích.
+      if (r?['locked'] == true) throw ApiError(429, 'login_locked', _lockedMessage);
       throw ApiError(401, 'invalid_credentials', _genericLoginError);
     }
 

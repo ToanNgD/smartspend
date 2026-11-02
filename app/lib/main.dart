@@ -39,10 +39,17 @@ Future<void> main() async {
   final data = AppData(api, cache);
 
   push.onOpen = session.openLink;
-  push.onForeground = (title, body, d) => messengerKey.currentState?.showSnackBar(SnackBar(
+  // Có cảnh báo lúc app đang mở: cập nhật số cảnh báo chưa đọc; Android đã hiện thông báo hệ thống,
+  // nơi khác (hoặc khi không hiện được) thì báo bằng thanh thông báo trong app.
+  push.onForeground = (title, body, d, shown) {
+    data.refreshSummary();
+    if (!shown) {
+      messengerKey.currentState?.showSnackBar(SnackBar(
         content: Text('$title\n$body'),
         duration: const Duration(seconds: 6),
       ));
+    }
+  };
 
   runApp(MultiProvider(
     providers: [

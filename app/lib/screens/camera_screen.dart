@@ -48,6 +48,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _ctl?.dispose();
+    _text.dispose();
     super.dispose();
   }
 
@@ -68,7 +69,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
     try {
       _cams = _cams.isEmpty ? await availableCameras() : _cams;
       if (_cams.isEmpty) {
-        setState(() => _camError = 'Không tìm thấy camera trên thiết bị này.');
+        setState(() => _camError = 'Không tìm thấy camera trên thiết bị này. Bạn có thể chọn ảnh từ thư viện.');
         return;
       }
       final c = CameraController(_cams[_camIndex], ResolutionPreset.high, enableAudio: false, imageFormatGroup: ImageFormatGroup.jpeg);
@@ -87,9 +88,9 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
     } on CameraException catch (e) {
       setState(() => _camError = e.code == 'CameraAccessDenied' || e.code.contains('Denied')
           ? 'Bạn chưa cấp quyền camera. Hãy bật trong Cài đặt của máy, hoặc chọn ảnh từ thư viện.'
-          : 'Không mở được camera.');
+          : 'Không mở được camera (có thể đang được ứng dụng khác dùng). Bạn có thể chọn ảnh từ thư viện.');
     } catch (_) {
-      setState(() => _camError = 'Không mở được camera.');
+      setState(() => _camError = 'Không mở được camera (có thể đang được ứng dụng khác dùng). Bạn có thể chọn ảnh từ thư viện.');
     }
   }
 
