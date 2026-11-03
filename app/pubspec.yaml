@@ -5,6 +5,8 @@ version: 1.0.0+1
 
 environment:
   sdk: ">=3.6.0 <4.0.0"
+  # Cần Flutter 3.38 trở lên (SnackBar có tham số persist); nhóm đang dùng 3.47.2.
+  flutter: ">=3.38.0"
 
 dependencies:
   flutter:

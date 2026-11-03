@@ -258,6 +258,15 @@ class _BudgetTxListState extends State<_BudgetTxList> {
   }
 }
 
+/// Dự báo của một ngân sách đã chạm hạn mức trong kỳ: chi quá thì "Đã vượt…", chi đúng bằng thì "Đã dùng hết…".
+/// Chưa chạm hạn mức thì trả về null (khi đó mới nói "dự kiến").
+String? limitReachedText(Map<String, dynamic> f) {
+  final spent = (f['spent'] as num?)?.toInt() ?? 0;
+  final limit = (f['amount_limit'] as num?)?.toInt() ?? 0;
+  if (limit <= 0 || spent < limit) return null;
+  return spent > limit ? 'Đã vượt hạn mức kỳ này' : 'Đã dùng hết hạn mức kỳ này';
+}
+
 class _ForecastLine extends StatelessWidget {
   final String budgetId;
   const _ForecastLine({required this.budgetId});
@@ -294,9 +303,8 @@ class _ForecastLine extends StatelessWidget {
                 ]),
                 subtitle: Text(hit != null
                     ? 'Với tốc độ hiện tại, bạn có thể chạm hạn mức vào ngày ${DateFormat('dd/MM').format(hit)}'
-                    : f['will_exceed'] == true
-                        ? 'Dự kiến vượt hạn mức trong kỳ này'
-                        : 'Đang trong tầm kiểm soát'),
+                    : limitReachedText(f) ??
+                        (f['will_exceed'] == true ? 'Dự kiến vượt hạn mức trong kỳ này' : 'Đang trong tầm kiểm soát')),
               ),
             ),
           );

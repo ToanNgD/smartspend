@@ -32,15 +32,29 @@ class _AlertsScreenState extends State<AlertsScreen> {
   List<AlertItem> _parse(dynamic r) =>
       (r['items'] as List).map((e) => AlertItem.fromJson(Map<String, dynamic>.from(e))).toList();
 
-  /// Tải lại trang đầu (50 cảnh báo mới nhất).
-  Future<void> _load() async {
+  /// Tải lại từ trang đầu (50 cảnh báo mới nhất).
+  /// [keep]: tải đủ số cảnh báo đang hiện (người dùng đã bấm "Xem cảnh báo cũ hơn") để sau khi mở một cảnh báo,
+  /// bấm "Bình thường" hay "Đọc hết", danh sách không bị cắt ngắn và không mất chỗ đang xem.
+  Future<void> _load({bool keep = false}) async {
+    final want = keep ? (_items?.length ?? 0) : 0;
     try {
-      final r = await context.read<ApiClient>().get('/alerts', query: {'limit': '$_page'});
+      final api = context.read<ApiClient>();
+      final items = <AlertItem>[];
+      var hasMore = false;
+      dynamic r;
+      do {
+        r = await api.get('/alerts', query: {
+          'limit': '$_page',
+          if (items.isNotEmpty) 'before': items.last.sentAt.toUtc().toIso8601String(),
+        });
+        final page = _parse(r);
+        items.addAll(page);
+        hasMore = page.length == _page;
+      } while (hasMore && items.length < want);
       if (!mounted) return;
-      final items = _parse(r);
       setState(() {
         _items = items;
-        _hasMore = items.length == _page;
+        _hasMore = hasMore;
         _error = null;
       });
       context.read<AppData>().setUnread((r['unread_count'] as num).toInt());
@@ -84,14 +98,14 @@ class _AlertsScreenState extends State<AlertsScreen> {
     } else if (a.transactionId != null) {
       await Navigator.push(context, MaterialPageRoute(builder: (_) => TxDetailScreen(id: a.transactionId!)));
     }
-    _load();
+    _load(keep: true);
   }
 
   Future<void> _normal(AlertItem a) async {
     try {
       await context.read<ApiClient>().post('/alerts/${a.id}/feedback', {'feedback': 'normal'});
       if (mounted) showInfo(context, 'Đã ghi nhận. Lần sau sẽ không cảnh báo khoản tương tự của danh mục này.');
-      _load();
+      _load(keep: true);
     } catch (e) {
       if (mounted) showError(context, e);
     }
@@ -104,7 +118,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
             onPressed: () async {
               try {
                 await context.read<ApiClient>().post('/alerts/read-all');
-                _load();
+                _load(keep: true);
               } catch (e) {
                 if (context.mounted) showError(context, e);
               }

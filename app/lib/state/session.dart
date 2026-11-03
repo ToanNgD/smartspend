@@ -117,15 +117,17 @@ class Session extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// Khóa app (bấm nút khóa, hoặc quay lại sau hơn 60 giây ở nền). Chỉ khóa khi đã đặt PIN.
-  Future<void> lockNow() async {
-    if (status != SessionStatus.ready) return;
+  /// Trả về true nếu đã khóa; false nếu không khóa được (vd người dùng đã tắt khóa ứng dụng).
+  Future<bool> lockNow() async {
+    if (status != SessionStatus.ready) return false;
     try {
-      if (!await vault.hasPin() || status != SessionStatus.ready) return;
+      if (!await vault.hasPin() || status != SessionStatus.ready) return false;
     } catch (_) {
-      return;
+      return false;
     }
     vault.lock();
     _set(SessionStatus.locked);
+    return true;
   }
 
   void _setObscured(bool v) {

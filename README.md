@@ -4,7 +4,7 @@
 
 | Thư mục | Nội dung | Công nghệ |
 |---|---|---|
-| `app/` | Ứng dụng di động | Flutter 3 + Dart, Provider, Dio |
+| `app/` | Ứng dụng di động | Flutter 3.38 trở lên + Dart, Provider, Dio |
 | `server/` | API (máy chủ) | Dart + Shelf, PostgreSQL (thư viện `postgres`), JWT, bcrypt |
 | `database/schema.sql` | Lược đồ CSDL (giống file trong thư mục `csdl/`) | PostgreSQL 15+ |
 | `API.md` | Danh sách API | |
@@ -19,7 +19,7 @@ Server đã chạy sẵn trên cloud (xem [DEPLOY.md](DEPLOY.md)) và app mặc 
 
 Cần cài trước:
 
-- Flutter SDK (đã có Dart đi kèm).
+- Flutter SDK **3.38 trở lên** (đã có Dart đi kèm). Nhóm đang dùng 3.47.2, nên cài cùng bản để thư viện khớp với `pubspec.lock`. Bản cũ hơn 3.38 sẽ báo lỗi ngay khi chạy `flutter pub get`.
 - VS Code với extension Flutter, hoặc Android Studio với plugin Flutter.
 - Android Studio, để có Android SDK và máy ảo. Có thể dùng điện thoại thật thay cho máy ảo.
 - PostgreSQL 15 trở lên: **chỉ cần khi chạy server trên máy tính** (mục 1.1, 1.2).
@@ -93,7 +93,7 @@ cd server
 dart test
 
 # App: kiểm thử đơn vị và giao diện (định dạng tiền, khóa PIN và mã hóa, xử lý ảnh, bàn phím PIN,
-# giới hạn độ dài ô nhập, thông báo "Hoàn tác" tự tắt)
+# giới hạn độ dài ô nhập, thông báo "Hoàn tác" tự tắt, tải thêm ở màn Cảnh báo)
 cd app
 flutter test
 ```

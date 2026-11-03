@@ -243,10 +243,14 @@ class _Forecasts extends StatelessWidget {
                       const Text(' / '),
                       Money((f['amount_limit'] as num?) ?? 0),
                     ]),
-                    trailing: f['projected_hit_at'] == null
-                        ? null
-                        : Text('chạm ngày\n${fmtDate(DateTime.parse(f['projected_hit_at'])).substring(0, 5)}',
-                            textAlign: TextAlign.right, style: TextStyle(color: context.warnColor, fontSize: 12)),
+                    trailing: f['projected_hit_at'] != null
+                        ? Text('chạm ngày\n${fmtDate(DateTime.parse(f['projected_hit_at'])).substring(0, 5)}',
+                            textAlign: TextAlign.right, style: TextStyle(color: context.warnColor, fontSize: 12))
+                        // Đã chạm hạn mức rồi thì nói rõ, không để người dùng hiểu là mới "dự kiến".
+                        : limitReachedText(f) == null
+                            ? null
+                            : Text(limitReachedText(f)!.replaceFirst(' hạn mức kỳ này', '\nhạn mức'),
+                                textAlign: TextAlign.right, style: TextStyle(color: context.warnColor, fontSize: 12)),
                   ),
             ]),
           );

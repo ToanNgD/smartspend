@@ -6,15 +6,47 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:provider/provider.dart';
+import 'package:smartspend/core/api_client.dart';
 import 'package:smartspend/core/format.dart';
 import 'package:smartspend/core/images.dart';
+import 'package:smartspend/core/secure_cache.dart';
+import 'package:smartspend/core/token_store.dart';
 import 'package:smartspend/core/vault.dart';
 import 'package:smartspend/models/models.dart';
 import 'package:smartspend/screens/ai_screen.dart';
+import 'package:smartspend/screens/alerts_screen.dart';
 import 'package:smartspend/screens/auth_screens.dart';
 import 'package:smartspend/screens/lock_screens.dart';
+import 'package:smartspend/state/app_data.dart';
 import 'package:smartspend/widgets/common.dart';
 import 'package:smartspend/widgets/tx_editor.dart';
+
+/// API giả cho màn Cảnh báo: 60 cảnh báo, trả theo trang giống server (limit, before).
+class _FakeAlertsApi extends ApiClient {
+  _FakeAlertsApi() : super(TokenStore());
+  final calls = <String?>[];
+  final all = List.generate(60, (i) => <String, dynamic>{
+        'id': 'a$i', 'type': 'budget_80', 'title': 'Cảnh báo số $i', 'body': 'Nội dung $i',
+        'sent_at': DateTime.utc(2026, 11, 2, 12).subtract(Duration(minutes: i)).toIso8601String(),
+        'read_at': '2026-11-02T13:00:00Z',
+      });
+
+  @override
+  Future<dynamic> get(String path, {Map<String, dynamic>? query}) async {
+    final before = query?['before'] as String?;
+    calls.add(before);
+    final b = before == null ? null : DateTime.parse(before);
+    final items = all
+        .where((a) => b == null || DateTime.parse(a['sent_at'] as String).isBefore(b))
+        .take(int.parse(query!['limit'] as String))
+        .toList();
+    return {'items': items, 'unread_count': 0};
+  }
+
+  @override
+  Future<dynamic> post(String path, [Object? body]) async => null;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -64,6 +96,29 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
     expect(find.text('Đã xóa 2 giao dịch'), findsNothing);
+  });
+
+  testWidgets('màn Cảnh báo: tải thêm cảnh báo cũ hơn; mở một cảnh báo xong vẫn giữ danh sách và chỗ đang xem',
+      (tester) async {
+    final api = _FakeAlertsApi();
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        Provider<ApiClient>.value(value: api),
+        ChangeNotifierProvider(create: (_) => AppData(api, SecureCache(Vault()))),
+      ],
+      child: const MaterialApp(home: AlertsScreen()),
+    ));
+    await tester.pumpAndSettle();
+    final list = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(find.text('Xem cảnh báo cũ hơn'), 500, scrollable: list);
+    await tester.tap(find.text('Xem cảnh báo cũ hơn'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Cảnh báo số 55'), 300, scrollable: list);
+    expect(find.text('Xem cảnh báo cũ hơn'), findsNothing, reason: 'đã hết cảnh báo');
+    await tester.tap(find.text('Cảnh báo số 55'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cảnh báo số 55'), findsOneWidget, reason: 'tải lại vẫn giữ đủ 60 cảnh báo và chỗ đang xem');
+    expect(api.calls.length, 4, reason: 'trang đầu, tải thêm, rồi tải lại đủ 2 trang');
   });
 
   test('quy tắc mật khẩu giống server', () {

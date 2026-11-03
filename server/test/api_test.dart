@@ -473,6 +473,8 @@ void main() {
       // Tháng 1.000.000đ: 85% -> chỉ cảnh báo 80%. Tuần Ăn uống 500.000đ: 170% -> 80% và 100% (chỉ đẩy 1 thông báo).
       expect(types.where((t) => t == 'budget_80').length, 2);
       expect(types.where((t) => t == 'budget_100').length, 1);
+      expect((al['items'] as List).firstWhere((x) => x['type'] == 'budget_100')['title'], 'Đã vượt ngân sách',
+          reason: 'chi 850.000đ trên hạn mức 500.000đ là đã vượt');
       for (final x in al['items'] as List) {
         expect(RegExp(r'\d{4,}|\d\.\d{3}|\dđ').hasMatch(x['body'] as String), false, reason: 'không chứa số tiền');
       }
@@ -523,6 +525,9 @@ void main() {
       expect(b['percent'], 100.0);
       expect(b['status'], 'red');
       expect((await alertTypes()).where((t) => t == 'budget_100').length, 1);
+      final (_, al) = await a.get('/alerts');
+      expect((al['items'] as List).firstWhere((x) => x['type'] == 'budget_100')['title'], 'Đã dùng hết ngân sách',
+          reason: 'chi đúng bằng hạn mức là dùng hết, chưa vượt');
     });
 
     test('mức đã dùng giảm dưới ngưỡng thì gỡ cảnh báo; chạm lại ngưỡng thì báo lại', () async {

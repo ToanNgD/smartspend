@@ -5,6 +5,7 @@ import '../screens/alerts_screen.dart';
 import '../screens/settings_screen.dart';
 import '../state/app_data.dart';
 import '../state/session.dart';
+import 'common.dart';
 
 /// Nút trên thanh tiêu đề: ẩn số tiền, cảnh báo, khóa ngay, cài đặt.
 List<Widget> topActions(BuildContext context) {
@@ -27,7 +28,13 @@ List<Widget> topActions(BuildContext context) {
     IconButton(
       tooltip: 'Khóa ứng dụng',
       icon: const Icon(Icons.lock_outline_rounded),
-      onPressed: () => context.read<Session>().lockNow(),
+      onPressed: () async {
+        final s = context.read<Session>();
+        // Người dùng đã tắt khóa ứng dụng (chưa có PIN): báo thay vì bấm mà không có gì xảy ra.
+        if (!await s.lockNow() && context.mounted && s.status == SessionStatus.ready) {
+          showInfo(context, 'Bạn đang tắt khóa ứng dụng. Bật lại trong Cài đặt → "Khóa ứng dụng bằng PIN".');
+        }
+      },
     ),
     IconButton(
       tooltip: 'Cài đặt',

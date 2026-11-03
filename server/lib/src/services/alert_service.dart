@@ -107,7 +107,10 @@ class AlertService {
       String? toPush;
       for (final th in [80, 100]) {
         if (pct < th) continue;
-        final title = th == 100 ? 'Đã vượt ngân sách' : 'Sắp chạm ngân sách';
+        // Chi vừa đúng bằng hạn mức là "dùng hết", chỉ khi chi quá mới là "vượt".
+        final title = th == 100
+            ? ((b['spent'] as int) > (b['amount_limit'] as int) ? 'Đã vượt ngân sách' : 'Đã dùng hết ngân sách')
+            : 'Sắp chạm ngân sách';
         final body = th == 100
             ? 'Ngân sách ${b['name']} đã dùng hết 100%'
             : 'Ngân sách ${b['name']} đã dùng $th%';
@@ -202,7 +205,8 @@ class AlertService {
             facts: {
               'ten_ngan_sach': b['name'] as String,
               'chu_ky': b['period'] == 'week' ? 'tuần' : 'tháng',
-              'da_dung_phan_tram': (b['percent'] as double).round(),
+              // Làm tròn xuống giống thẻ ngân sách trên app (79,9% là 79%, không phải 80%).
+              'da_dung_phan_tram': (b['percent'] as double).floor(),
               'du_kien_cuoi_ky_phan_tram': ((f['projected_total'] as int) * 100 / (f['amount_limit'] as int)).round(),
               'ngay_du_kien_vuot': day['d'] as String,
               'so_ngay_con_lai': b['days_left'] as int,
