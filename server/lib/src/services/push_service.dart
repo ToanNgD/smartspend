@@ -11,32 +11,56 @@ import '../core/db.dart';
 class PushService {
   final Db db;
   final String serviceAccountPath;
-  AutoRefreshingAuthClient? _client;
+  ServiceAccountCredentials? _creds;
   String? _projectId;
-  bool _initFailed = false;
+  AutoRefreshingAuthClient? _client;
+  Future<AutoRefreshingAuthClient?>? _connecting;
+  /// Khóa tài khoản dịch vụ không đọc được (sai nội dung, sai đường dẫn): tắt hẳn thông báo đẩy.
+  bool _invalid = false;
+  /// Lần kết nối FCM gần nhất bị lỗi mạng: chờ tới mốc này mới thử lại (không tắt hẳn).
+  DateTime? _retryAt;
 
-  PushService(this.db, this.serviceAccountPath);
+  static const retryDelay = Duration(minutes: 5);
 
-  bool get enabled => serviceAccountPath.isNotEmpty && !_initFailed;
-
-  Future<AutoRefreshingAuthClient?> _getClient() async {
-    if (_client != null) return _client;
-    if (!enabled) return null;
+  PushService(this.db, this.serviceAccountPath) {
+    if (serviceAccountPath.isEmpty) return;
     try {
       // Nhận nội dung JSON trực tiếp hoặc đường dẫn tới file JSON.
       final raw = serviceAccountPath.trim().startsWith('{')
           ? serviceAccountPath
-          : await File(serviceAccountPath).readAsString();
+          : File(serviceAccountPath).readAsStringSync();
       final json = jsonDecode(raw) as Map<String, dynamic>;
       _projectId = json['project_id'] as String;
-      _client = await clientViaServiceAccount(ServiceAccountCredentials.fromJson(json),
-          ['https://www.googleapis.com/auth/firebase.messaging']);
-      return _client;
+      _creds = ServiceAccountCredentials.fromJson(json);
     } catch (e) {
-      _initFailed = true;
-      stderr.writeln('[push] Không khởi tạo được FCM: ${e.runtimeType}. Thông báo đẩy bị tắt.');
-      return null;
+      _invalid = true;
+      stderr.writeln('[push] Khóa FCM không đọc được (${e.runtimeType}). Thông báo đẩy bị tắt.');
     }
+  }
+
+  /// Có cấu hình FCM và khóa đọc được. Lỗi mạng tạm thời không làm giá trị này thành false.
+  bool get enabled => serviceAccountPath.isNotEmpty && !_invalid;
+
+  Future<AutoRefreshingAuthClient?> _getClient() async {
+    if (_client != null) return _client;
+    if (!enabled) return null;
+    final retryAt = _retryAt;
+    if (retryAt != null && DateTime.now().isBefore(retryAt)) return null;
+    // Nhiều cảnh báo cùng lúc chỉ dẫn tới một lần kết nối.
+    return _connecting ??= () async {
+      try {
+        _client = await clientViaServiceAccount(_creds!, ['https://www.googleapis.com/auth/firebase.messaging']);
+        _retryAt = null;
+        return _client;
+      } catch (e) {
+        // Mất mạng hoặc dịch vụ của Google tạm lỗi: lần gửi sau (sau 5 phút) thử kết nối lại.
+        _retryAt = DateTime.now().add(retryDelay);
+        stderr.writeln('[push] Chưa kết nối được FCM (${e.runtimeType}), sẽ thử lại sau ${retryDelay.inMinutes} phút.');
+        return null;
+      } finally {
+        _connecting = null;
+      }
+    }();
   }
 
   /// Gửi tới mọi thiết bị của người dùng. Trả về số thiết bị gửi thành công.

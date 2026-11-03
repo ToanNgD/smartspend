@@ -147,6 +147,8 @@ class ReportRoutes {
   }
 
   /// Xu hướng thu/chi theo ngày, tuần hoặc tháng (có đủ các mốc, kể cả mốc bằng 0).
+  /// Mỗi mốc ghi ngày bắt đầu; mốc đầu tiên không sớm hơn ngày đầu kỳ (xem tháng 11 theo tuần thì mốc đầu
+  /// là 01/11 chứ không phải thứ Hai 26/10), vì số liệu chỉ tính từ đầu kỳ.
   Future<Response> _trend(Request req) async {
     final r = await _range(req);
     final group = req.url.queryParameters['group'] ?? 'day';
@@ -155,7 +157,7 @@ class ReportRoutes {
       WITH b AS (
         SELECT g AS bucket FROM generate_series(date_trunc(@g, @s::timestamp), @e::timestamp - interval '1 second',
           ('1 ' || @g)::interval) g)
-      SELECT b.bucket,
+      SELECT b.bucket, GREATEST(b.bucket, @s::timestamp) AS label,
         COALESCE(sum(t.amount) FILTER (WHERE t.type = 'income'), 0)::bigint AS income,
         COALESCE(sum(t.amount) FILTER (WHERE t.type = 'expense'), 0)::bigint AS expense
       FROM b LEFT JOIN transactions t ON $_base AND $_inCur
@@ -165,7 +167,7 @@ class ReportRoutes {
       'group': group,
       'items': rows
           .map((x) => {
-                'date': (x['bucket'] as DateTime).toIso8601String().substring(0, 10),
+                'date': (x['label'] as DateTime).toIso8601String().substring(0, 10),
                 'income': x['income'],
                 'expense': x['expense'],
               })

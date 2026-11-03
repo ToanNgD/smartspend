@@ -2,6 +2,9 @@ import 'package:intl/intl.dart';
 
 final _money = NumberFormat.decimalPattern('vi');
 
+/// Số tiền lớn nhất của một giao dịch, hạn mức ngân sách hay số dư nhập vào: 10 tỷ đồng (khớp giới hạn của server).
+const maxMoney = 10000000000;
+
 /// 1250000 -> "1.250.000đ"
 String vnd(num v, {bool sign = false}) {
   final s = _money.format(v.abs());

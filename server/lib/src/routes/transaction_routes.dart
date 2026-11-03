@@ -170,7 +170,7 @@ class TransactionRoutes {
           {'id': id, 'u': req.userId});
       if (old == null) throw ApiError.notFound('Không tìm thấy giao dịch');
       if (old['source'] == 'system') {
-        throw ApiError.badRequest('Giao dịch hệ thống không sửa được, hãy dùng điều chỉnh số dư');
+        throw ApiError.badRequest('Giao dịch hệ thống không sửa được, hãy dùng điều chỉnh số dư', 'system_transaction');
       }
       final type = f.has('type') ? f.oneOf('type', ['income', 'expense'], label: 'Loại giao dịch') : old['type'] as String;
       final amount = f.has('amount') ? f.integer('amount', min: 1, label: 'Số tiền') : old['amount'] as int;
@@ -244,11 +244,23 @@ class TransactionRoutes {
   }
 
   Future<void> _softDelete(Session s, String userId, String id) async {
+    // Giao dịch hệ thống (số dư ban đầu, điều chỉnh số dư) không sửa, không xóa được: số dư chỉ đổi qua
+    // giao dịch thật hoặc điều chỉnh số dư (3.1). Xóa nhiều mà có một giao dịch như vậy thì không xóa gì cả.
     final t = await s.row(
         'UPDATE transactions SET deleted_at = now() WHERE id = @id AND user_id = @u AND deleted_at IS NULL '
-        'RETURNING type, amount, wallet_id',
+        "AND source <> 'system' RETURNING type, amount, wallet_id",
         {'id': id, 'u': userId});
-    if (t == null) throw ApiError.notFound('Không tìm thấy giao dịch');
+    if (t == null) {
+      final sys = await s.row(
+          "SELECT 1 FROM transactions WHERE id = @id AND user_id = @u AND deleted_at IS NULL AND source = 'system'",
+          {'id': id, 'u': userId});
+      if (sys != null) {
+        throw ApiError.badRequest(
+            'Giao dịch hệ thống (số dư ban đầu, điều chỉnh số dư) không xóa được, hãy dùng điều chỉnh số dư',
+            'system_transaction');
+      }
+      throw ApiError.notFound('Không tìm thấy giao dịch');
+    }
     await s.run('UPDATE wallets SET balance = balance - @d WHERE id = @w',
         {'d': _effect(t['type'] as String, t['amount'] as int), 'w': t['wallet_id']});
     // Ảnh vẫn được giữ để hoàn tác.

@@ -18,8 +18,10 @@ class AlertsScreen extends StatefulWidget {
 }
 
 class _AlertsScreenState extends State<AlertsScreen> {
+  static const _page = 50;
   List<AlertItem>? _items;
   Object? _error;
+  bool _hasMore = false, _loadingMore = false;
 
   @override
   void initState() {
@@ -27,14 +29,45 @@ class _AlertsScreenState extends State<AlertsScreen> {
     _load();
   }
 
+  List<AlertItem> _parse(dynamic r) =>
+      (r['items'] as List).map((e) => AlertItem.fromJson(Map<String, dynamic>.from(e))).toList();
+
+  /// Tải lại trang đầu (50 cảnh báo mới nhất).
   Future<void> _load() async {
     try {
-      final r = await context.read<ApiClient>().get('/alerts', query: {'limit': '50'});
+      final r = await context.read<ApiClient>().get('/alerts', query: {'limit': '$_page'});
       if (!mounted) return;
-      setState(() => _items = (r['items'] as List).map((e) => AlertItem.fromJson(Map<String, dynamic>.from(e))).toList());
+      final items = _parse(r);
+      setState(() {
+        _items = items;
+        _hasMore = items.length == _page;
+        _error = null;
+      });
       context.read<AppData>().setUnread((r['unread_count'] as num).toInt());
     } catch (e) {
       if (mounted) setState(() => _error = e);
+    }
+  }
+
+  /// Tải thêm các cảnh báo cũ hơn cảnh báo cuối danh sách.
+  Future<void> _more() async {
+    final items = _items;
+    if (items == null || items.isEmpty || _loadingMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final r = await context
+          .read<ApiClient>()
+          .get('/alerts', query: {'limit': '$_page', 'before': items.last.sentAt.toUtc().toIso8601String()});
+      if (!mounted) return;
+      final more = _parse(r);
+      setState(() {
+        _items = [...items, ...more];
+        _hasMore = more.length == _page;
+      });
+    } catch (e) {
+      if (mounted) showError(context, e);
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
     }
   }
 
@@ -93,9 +126,19 @@ class _AlertsScreenState extends State<AlertsScreen> {
                     ])
                   : ListView.separated(
                       padding: const EdgeInsets.all(16),
-                      itemCount: _items!.length,
+                      itemCount: _items!.length + (_hasMore ? 1 : 0),
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (c, i) {
+                        if (i == _items!.length) {
+                          return Center(
+                            child: _loadingMore
+                                ? const Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator())
+                                : TextButton.icon(
+                                    onPressed: _more,
+                                    icon: const Icon(Icons.expand_more),
+                                    label: const Text('Xem cảnh báo cũ hơn')),
+                          );
+                        }
                         final a = _items![i];
                         final (icon, color) = switch (a.type) {
                           'budget_100' => (Icons.error_outline, context.expenseColor),

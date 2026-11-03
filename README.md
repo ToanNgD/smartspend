@@ -85,14 +85,15 @@ Nếu Gradle báo lỗi "different roots" (code ở ổ D, Flutter ở ổ C): `
 
 ```bash
 # Server: chạy server trước, sau đó chạy lệnh dưới.
-# - test/api_test.dart: 27 ca kiểm thử API (12 nhóm), gồm cả các ca bảo mật như IDOR, khóa đăng nhập,
+# - test/api_test.dart: 28 ca kiểm thử API (12 nhóm), gồm cả các ca bảo mật như IDOR, khóa đăng nhập,
 #   refresh token bị dùng lại, tệp giả dạng ảnh, EXIF.
 # - test/client_ip_test.dart: cách lấy IP thật khi chạy sau Cloudflare/Render (không cần server).
 # - test/alert_phrase_test.dart: kiểm tra câu cảnh báo do AI viết (không có số tiền, đúng tên, đúng ngày).
 cd server
 dart test
 
-# App: kiểm thử đơn vị và giao diện (định dạng tiền, khóa PIN và mã hóa, xử lý ảnh, bàn phím PIN)
+# App: kiểm thử đơn vị và giao diện (định dạng tiền, khóa PIN và mã hóa, xử lý ảnh, bàn phím PIN,
+# giới hạn độ dài ô nhập, thông báo "Hoàn tác" tự tắt)
 cd app
 flutter test
 ```

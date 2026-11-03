@@ -15,7 +15,7 @@ Future<void> main() async {
   if (config.enableScheduler) startScheduler(ctx);
   stdout.writeln('SmartSpend API chạy tại http://${server.address.host}:${server.port}/api/v1');
   stdout.writeln('AI: ${config.aiEnabled ? 'Gemini (${config.geminiModel})' : 'bộ phân tích dự phòng (chưa có GEMINI_API_KEY)'}');
-  stdout.writeln('Thông báo đẩy: ${config.pushEnabled ? 'bật' : 'tắt (chưa có FCM_SERVICE_ACCOUNT)'}');
+  stdout.writeln('Thông báo đẩy: ${ctx.push.enabled ? 'bật' : config.pushEnabled ? 'tắt (khóa FCM không đọc được, kiểm tra lại FCM_SERVICE_ACCOUNT_JSON)' : 'tắt (chưa có FCM_SERVICE_ACCOUNT)'}');
 
   ProcessSignal.sigint.watch().listen((_) async {
     await server.close();

@@ -23,7 +23,8 @@ class AccountRoutes {
     if (u == null) throw ApiError.unauthorized();
     return jsonOk({
       ...clean(u),
-      'features': {'ai': c.config.aiEnabled, 'push': c.config.pushEnabled},
+      // push: có cấu hình FCM và khóa đọc được (lỗi mạng tạm thời thì server tự thử lại, vẫn tính là bật).
+      'features': {'ai': c.config.aiEnabled, 'push': c.push.enabled},
     });
   }
 

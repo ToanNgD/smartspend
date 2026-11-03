@@ -113,6 +113,10 @@ class WalletRoutes {
     final w = await c.db.tx((s) async {
       final cur = await _own(s, req.userId, id, lock: true);
       final diff = target - (cur['balance'] as int);
+      // Giao dịch điều chỉnh cũng là một giao dịch nên chênh lệch không vượt giới hạn số tiền (10 tỷ đồng).
+      if (diff.abs() > maxAmount) {
+        throw ApiError.badRequest('Mỗi lần điều chỉnh, số dư chỉ được chênh tối đa ${moneyText(maxAmount)}');
+      }
       if (diff != 0) {
         await systemTx(s, req.userId, id, diff > 0 ? 'income' : 'expense', diff.abs(), 'Điều chỉnh số dư');
       }

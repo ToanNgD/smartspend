@@ -68,6 +68,10 @@ class _WalletTile extends StatelessWidget {
         case 'adjust':
           final v = await showDialog<int>(context: context, builder: (_) => _AdjustDialog(w: w));
           if (v != null) {
+            if (v > maxMoney) {
+              if (context.mounted) showInfo(context, 'Số dư thực tế tối đa 10 tỷ đồng');
+              return;
+            }
             await api.post('/wallets/${w.id}/adjust', {'balance': v});
             await data.afterTxChange();
           }
@@ -175,6 +179,8 @@ class _WalletFormState extends State<_WalletForm> {
 
   Future<void> _save() async {
     if (_name.text.trim().isEmpty) return showInfo(context, 'Nhập tên ví');
+    final initial = parseMoney(_initial.text) ?? 0;
+    if (widget.edit == null && initial > maxMoney) return showInfo(context, 'Số dư ban đầu tối đa 10 tỷ đồng');
     final api = context.read<ApiClient>();
     final data = context.read<AppData>();
     try {
@@ -182,7 +188,7 @@ class _WalletFormState extends State<_WalletForm> {
         await api.post('/wallets', {
           'name': _name.text.trim(),
           'type': _type,
-          'initial_balance': parseMoney(_initial.text) ?? 0,
+          'initial_balance': initial,
         });
       } else {
         await api.patch('/wallets/${widget.edit!.id}', {'name': _name.text.trim(), 'type': _type});
@@ -201,7 +207,11 @@ class _WalletFormState extends State<_WalletForm> {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text(widget.edit == null ? 'Thêm ví' : 'Sửa ví', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 16),
-          TextField(controller: _name, maxLength: 30, decoration: const InputDecoration(labelText: 'Tên ví', hintText: 'vd: MoMo, Vietcombank')),
+          TextField(
+              controller: _name,
+              inputFormatters: const [MaxLengthFormatter(30)],
+              buildCounter: lengthCounter(_name, 30),
+              decoration: const InputDecoration(labelText: 'Tên ví', hintText: 'vd: MoMo, Vietcombank')),
           SegmentedButton<String>(
             segments: const [
               ButtonSegment(value: 'cash', label: Text('Tiền mặt'), icon: Icon(Icons.payments_outlined)),

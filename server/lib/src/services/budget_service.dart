@@ -49,7 +49,10 @@ Map<String, dynamic> _decorate(Map<String, dynamic> r) {
   final now = DateTime.now().toUtc();
   final remaining = limit - spent;
   final daysLeft = (end.difference(now).inHours / 24).ceil().clamp(1, 31);
-  final pct = limit == 0 ? 0.0 : spent * 100 / limit;
+  // Phần trăm làm tròn XUỐNG 1 chữ số (79,96% -> 79,9): chưa thật sự chạm 80%/100% thì không hiện 80%/100%
+  // và không cảnh báo (alert_service so ngưỡng với giá trị này). Ngưỡng và màu so bằng số tiền thật.
+  final pct = limit <= 0 ? 0.0 : (spent * 1000 ~/ limit) / 10;
+  bool reached(int th) => limit > 0 && spent * 100 >= limit * th;
   return {
     'id': r['id'],
     'name': r['name'],
@@ -61,11 +64,11 @@ Map<String, dynamic> _decorate(Map<String, dynamic> r) {
     'period_end': end.toIso8601String(),
     'spent': spent,
     'remaining': remaining,
-    'percent': double.parse(pct.toStringAsFixed(1)),
+    'percent': pct,
     'days_left': daysLeft,
     'daily_allowance': remaining > 0 ? remaining ~/ daysLeft : 0,
     // xanh < 80%, vàng 80-99%, đỏ >= 100% (khớp ngưỡng cảnh báo 5.2)
-    'status': pct >= 100 ? 'red' : (pct >= 80 ? 'yellow' : 'green'),
+    'status': reached(100) ? 'red' : (reached(80) ? 'yellow' : 'green'),
     'created_at': (r['created_at'] as DateTime).toIso8601String(),
   };
 }

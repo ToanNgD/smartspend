@@ -11,6 +11,15 @@ const maxAmount = 10000000000;
 
 bool isUuid(Object? v) => v is String && _uuidRe.hasMatch(v);
 
+/// Số tiền trong thông báo lỗi: 10000000000 -> "10 tỷ đồng", 1000 -> "1.000đ".
+String moneyText(int v) {
+  final sign = v < 0 ? '-' : '';
+  final a = v.abs();
+  if (a >= 1000000000 && a % 1000000000 == 0) return '$sign${a ~/ 1000000000} tỷ đồng';
+  final s = a.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => '.');
+  return '$sign$sđ';
+}
+
 /// Làm sạch chuỗi: bỏ ký tự điều khiển và ký tự định hướng ẩn, gộp khoảng trắng.
 String sanitize(String s) => s.replaceAll(_ctrlRe, ' ').replaceAll(_spaceRe, ' ').trim();
 
@@ -51,11 +60,19 @@ class Fields {
 
   String? optUuid(String k) => body[k] == null ? null : uuid(k);
 
+  /// Số tiền (đồng). Ngoài khoảng cho phép thì báo rõ giới hạn, vd "Số tiền tối đa 10 tỷ đồng".
   int integer(String k, {int min = 0, int max = maxAmount, String? label}) {
     final v = body[k];
-    final n = v is int ? v : (v is double && v == v.roundToDouble() ? v.toInt() : null);
-    if (n == null || n < min || n > max) {
-      throw ApiError.badRequest('${label ?? k} không hợp lệ');
+    final n = v is int ? v : (v is double && v == v.roundToDouble() && v.abs() < 1e15 ? v.toInt() : null);
+    final name = label ?? k;
+    if (n == null) throw ApiError.badRequest('$name không hợp lệ');
+    if (n > max) throw ApiError.badRequest('$name tối đa ${moneyText(max)}');
+    if (n < min) {
+      throw ApiError.badRequest(switch (min) {
+        1 => '$name phải lớn hơn 0',
+        0 => '$name không được âm',
+        _ => '$name tối thiểu ${moneyText(min)}',
+      });
     }
     return n;
   }

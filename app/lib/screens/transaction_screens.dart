@@ -44,6 +44,10 @@ class TransactionsScreen extends StatefulWidget {
   State<TransactionsScreen> createState() => _TransactionsScreenState();
 }
 
+/// Giao dịch hệ thống (số dư ban đầu, điều chỉnh số dư) không sửa, không xóa được (4.2).
+const systemTxHint = 'Giao dịch hệ thống không sửa hay xóa được. Muốn đổi số dư, hãy dùng "Điều chỉnh số dư" '
+    'trong Cài đặt → Ví.';
+
 class _Filter {
   String? type, categoryId, walletId;
   DateTimeRange? range;
@@ -140,6 +144,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     } finally {
       if (id == _reqId && mounted) setState(() => _loading = false);
     }
+  }
+
+  /// Chọn (hoặc bỏ chọn) giao dịch để xóa nhiều. Giao dịch hệ thống không xóa được nên không cho chọn.
+  void _select(Tx t, {bool add = false}) {
+    if (t.source == 'system') return showInfo(context, systemTxHint);
+    setState(() => !add && _selected.contains(t.id) ? _selected.remove(t.id) : _selected.add(t.id));
   }
 
   Future<void> _bulkDelete() async {
@@ -326,10 +336,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                               TxTile(
                                 tx: t,
                                 selected: _selected.contains(t.id),
-                                onLongPress: () => setState(() => _selected.add(t.id)),
+                                onLongPress: () => _select(t, add: true),
                                 onTap: () {
                                   if (selecting) {
-                                    setState(() => _selected.contains(t.id) ? _selected.remove(t.id) : _selected.add(t.id));
+                                    _select(t);
                                   } else {
                                     Navigator.push(context, MaterialPageRoute(builder: (_) => TxDetailScreen(id: t.id)));
                                   }
@@ -493,6 +503,8 @@ class _TxDetailScreenState extends State<TxDetailScreen> {
       messenger.showSnackBar(SnackBar(
         content: const Text('Đã xóa giao dịch'),
         duration: const Duration(seconds: 5),
+        // Tự tắt sau 5 giây (Flutter 3.38 trở đi mặc định giữ mãi thông báo có nút).
+        persist: false,
         action: SnackBarAction(
           label: 'Hoàn tác',
           onPressed: () async {
@@ -577,7 +589,8 @@ class _TxDetailScreenState extends State<TxDetailScreen> {
               if (changed == true) _load();
             },
           ),
-        if (t != null && !deleted) IconButton(tooltip: 'Xóa', icon: const Icon(Icons.delete_outline), onPressed: _delete),
+        // Giao dịch hệ thống (số dư ban đầu, điều chỉnh số dư) không sửa, không xóa được.
+        if (canEdit) IconButton(tooltip: 'Xóa', icon: const Icon(Icons.delete_outline), onPressed: _delete),
       ]),
       body: t == null
           ? Center(
@@ -624,6 +637,11 @@ class _TxDetailScreenState extends State<TxDetailScreen> {
                   if (t.note != null) _row(Icons.notes, 'Ghi chú', t.note!),
                 ]),
               ),
+              if (t.source == 'system' && !deleted)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 12, 4, 0),
+                  child: Text(systemTxHint, style: TextStyle(color: context.muted, fontSize: 12.5)),
+                ),
               if (canEdit) ...[
                 SectionTitle('Ảnh (${t.attachments.length + _pending.length}/3)',
                     trailing: t.attachments.length + _pending.length < 3

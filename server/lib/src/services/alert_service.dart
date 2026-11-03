@@ -102,6 +102,7 @@ class AlertService {
   Future<void> checkBudgets(String userId, {String? categoryId}) async {
     final budgets = await budgetsWithUsage(db.pool, userId, categoryId: categoryId);
     for (final b in budgets) {
+      // percent được làm tròn xuống (budget_service) nên "pct >= 80" đúng khi số tiền đã chi thật sự đạt 80% hạn mức.
       final pct = b['percent'] as double;
       String? toPush;
       for (final th in [80, 100]) {

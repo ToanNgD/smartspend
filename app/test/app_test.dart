@@ -13,6 +13,7 @@ import 'package:smartspend/models/models.dart';
 import 'package:smartspend/screens/ai_screen.dart';
 import 'package:smartspend/screens/auth_screens.dart';
 import 'package:smartspend/screens/lock_screens.dart';
+import 'package:smartspend/widgets/common.dart';
 import 'package:smartspend/widgets/tx_editor.dart';
 
 void main() {
@@ -35,6 +36,34 @@ void main() {
       final v = f.formatEditUpdate(TextEditingValue.empty, const TextEditingValue(text: '1500000'));
       expect(v.text, '1.500.000');
     });
+  });
+
+  test('giới hạn độ dài ô nhập đếm giống server (emoji tính 2, không cắt đôi emoji)', () {
+    const f = MaxLengthFormatter(5);
+    TextEditingValue v(String t) => TextEditingValue(text: t, selection: TextSelection.collapsed(offset: t.length));
+    expect(f.formatEditUpdate(v('abcd'), v('abcde')).text, 'abcde');
+    expect(f.formatEditUpdate(v('abcde'), v('abcdef')).text, 'abcde', reason: 'đã đầy thì không nhận thêm');
+    expect(f.formatEditUpdate(v(''), v('ab😀cd')).text, 'ab😀c');
+    expect(f.formatEditUpdate(v(''), v('abcd😀')).text, 'abcd');
+  });
+
+  testWidgets('thông báo có nút "Hoàn tác" tự tắt sau vài giây', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Builder(
+          builder: (c) => TextButton(
+            onPressed: () => showInfo(c, 'Đã xóa 2 giao dịch', action: SnackBarAction(label: 'Hoàn tác', onPressed: () {})),
+            child: const Text('xóa'),
+          ),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('xóa'));
+    await tester.pumpAndSettle();
+    expect(find.text('Hoàn tác'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    expect(find.text('Đã xóa 2 giao dịch'), findsNothing);
   });
 
   test('quy tắc mật khẩu giống server', () {

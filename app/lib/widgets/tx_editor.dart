@@ -190,7 +190,9 @@ class _TxEditorState extends State<TxEditor> {
       const SizedBox(height: 14),
       TextField(
         controller: _note,
-        maxLength: 200,
+        // Đếm độ dài giống server (xem MaxLengthFormatter).
+        inputFormatters: const [MaxLengthFormatter(200)],
+        buildCounter: lengthCounter(_note, 200),
         maxLines: widget.compact ? 1 : 2,
         minLines: 1,
         decoration: const InputDecoration(labelText: 'Ghi chú (không bắt buộc)'),

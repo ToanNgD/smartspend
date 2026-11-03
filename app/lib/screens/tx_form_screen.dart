@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
+import '../core/format.dart';
 import '../models/models.dart';
 import '../state/app_data.dart';
 import '../widgets/common.dart';
@@ -33,6 +34,7 @@ class _TxFormScreenState extends State<TxFormScreen> {
 
   Future<void> _save() async {
     if (_d.amount == null || _d.amount! <= 0) return showInfo(context, 'Nhập số tiền lớn hơn 0');
+    if (_d.amount! > maxMoney) return showInfo(context, 'Số tiền tối đa 10 tỷ đồng');
     if (_d.categoryId == null) return showInfo(context, 'Chọn danh mục');
     if (_d.walletId == null) return showInfo(context, 'Chọn ví');
     final data = context.read<AppData>();

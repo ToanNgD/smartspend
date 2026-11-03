@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
+import '../core/format.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import '../state/app_data.dart';
@@ -56,7 +57,8 @@ class BudgetCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Text('${b.percent.toStringAsFixed(0)}%', style: const TextStyle(fontWeight: FontWeight.w700)),
+              // Làm tròn xuống: chưa chi đủ 80%/100% thì không hiện 80%/100% (khớp ngưỡng cảnh báo).
+              Text('${b.percent.floor()}%', style: const TextStyle(fontWeight: FontWeight.w700)),
             ]),
             const SizedBox(height: 8),
             BudgetBar(percent: b.percent),
@@ -336,6 +338,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     final limit = int.tryParse(_limit.text.replaceAll(RegExp(r'[^0-9]'), ''));
     if (_name.text.trim().isEmpty) return showInfo(context, 'Nhập tên ngân sách');
     if (limit == null || limit < 1000) return showInfo(context, 'Hạn mức tối thiểu 1.000đ');
+    if (limit > maxMoney) return showInfo(context, 'Hạn mức tối đa 10 tỷ đồng');
     if (_scope == 'categories' && _cats.isEmpty) return showInfo(context, 'Chọn ít nhất một danh mục');
     final api = context.read<ApiClient>();
     final data = context.read<AppData>();
@@ -377,7 +380,11 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.all(16),
           children: [
-        TextField(controller: _name, maxLength: 40, decoration: const InputDecoration(labelText: 'Tên ngân sách', hintText: 'vd: Chi tiêu tháng')),
+        TextField(
+            controller: _name,
+            inputFormatters: const [MaxLengthFormatter(40)],
+            buildCounter: lengthCounter(_name, 40),
+            decoration: const InputDecoration(labelText: 'Tên ngân sách', hintText: 'vd: Chi tiêu tháng')),
         const SizedBox(height: 4),
         TextField(
           controller: _limit,

@@ -182,9 +182,24 @@ void main() {
       expect(s, 400, reason: 'không sửa trực tiếp số dư');
       (s, b) = await a.post('/wallets/$momo/adjust', {'balance': 450000});
       expect(b['balance'], 450000);
+      (s, b) = await a.post('/wallets/$momo/adjust', {'balance': -10000000000});
+      expect(s, 400, reason: 'mỗi lần điều chỉnh chênh lệch tối đa 10 tỷ');
+      expect(b['error']['message'], contains('10 tỷ'));
       (s, b) = await a.get('/transactions');
       expect(b['totals']['income'], 0, reason: 'số dư ban đầu không tính vào tổng thu');
       expect(b['totals']['expense'], 0, reason: 'điều chỉnh số dư không tính vào tổng chi');
+      // Giao dịch hệ thống (số dư ban đầu, điều chỉnh số dư) không sửa, không xóa được, kể cả khi xóa nhiều.
+      final sysIds = [for (final t in b['items'] as List) if (t['source'] == 'system') t['id'] as String];
+      expect(sysIds.length, 2);
+      (s, b) = await a.patch('/transactions/${sysIds.first}', {'amount': 1000});
+      expect([s, b['error']['code']], [400, 'system_transaction']);
+      (s, b) = await a.delete('/transactions/${sysIds.first}');
+      expect([s, b['error']['code']], [400, 'system_transaction']);
+      final normal = await addTx(a, wallet: momo, cat: (await catByName(a, 'Ăn uống'))['id'], amount: 20000);
+      (s, b) = await a.post('/transactions/bulk-delete', {'ids': [normal['id'], sysIds.last]});
+      expect([s, b['error']['code']], [400, 'system_transaction']);
+      (s, b) = await a.get('/transactions/${normal['id']}');
+      expect(b['deleted_at'], isNull, reason: 'có giao dịch hệ thống thì không xóa giao dịch nào');
       (s, b) = await a.delete('/wallets/$momo');
       expect(s, 409, reason: 'ví đã có giao dịch');
       final cash = await cashWallet(a);
@@ -295,6 +310,10 @@ void main() {
       (s, b) = await a.post('/transactions', {
         'idempotency_key': uid(), 'type': 'expense', 'amount': 0, 'wallet_id': w['id'], 'category_id': food['id']});
       expect(s, 400);
+      (s, b) = await a.post('/transactions', {
+        'idempotency_key': uid(), 'type': 'expense', 'amount': 10000000001, 'wallet_id': w['id'], 'category_id': food['id']});
+      expect(s, 400);
+      expect(b['error']['message'], 'Số tiền tối đa 10 tỷ đồng', reason: 'báo rõ giới hạn số tiền');
       (s, b) = await a.post('/transactions', {
         'idempotency_key': uid(), 'type': 'expense', 'amount': 1000, 'wallet_id': w['id'], 'category_id': food['id'],
         'note': 'x' * 201});
@@ -468,6 +487,42 @@ void main() {
       expect(s, 204);
       final (_, list) = await a.get('/transactions');
       expect(list['totals']['count'], 4, reason: 'xóa ngân sách không xóa giao dịch');
+    });
+
+    test('ngưỡng tính theo số tiền thật: chưa đủ 80% thì chưa báo, còn tiền thì chưa báo vượt', () async {
+      final a = await Api.register();
+      final w = await cashWallet(a);
+      final food = await catByName(a, 'Ăn uống');
+      var (s, b) = await a.post('/budgets', {'name': 'Quá lớn', 'amount_limit': 20000000000, 'period': 'month'});
+      expect(s, 400);
+      expect(b['error']['message'], 'Hạn mức tối đa 10 tỷ đồng');
+      (s, b) = await a.post('/budgets', {'name': 'Ăn uống', 'amount_limit': 500000, 'period': 'month', 'scope': 'categories',
+        'category_ids': [food['id']]});
+      expect(s, 201);
+      final id = b['id'];
+      Future<List<String>> alertTypes() async {
+        final (_, al) = await a.get('/alerts');
+        return (al['items'] as List).map((x) => x['type'] as String).toList();
+      }
+
+      await addTx(a, wallet: w['id'], cat: food['id'], amount: 399800);
+      (s, b) = await a.get('/budgets/$id');
+      expect(b['percent'], 79.9, reason: '79,96% làm tròn xuống, không hiện 80%');
+      expect(b['status'], 'green');
+      expect(await alertTypes(), isEmpty, reason: 'chưa chi đủ 80% hạn mức');
+      await addTx(a, wallet: w['id'], cat: food['id'], amount: 200);
+      expect(await alertTypes(), ['budget_80'], reason: 'chi đúng 400.000đ = 80% thì báo');
+      await addTx(a, wallet: w['id'], cat: food['id'], amount: 99750);
+      (s, b) = await a.get('/budgets/$id');
+      expect(b['remaining'], 250);
+      expect(b['percent'], 99.9);
+      expect(b['status'], 'yellow');
+      expect(await alertTypes(), isNot(contains('budget_100')), reason: 'còn 250đ thì chưa báo vượt ngân sách');
+      await addTx(a, wallet: w['id'], cat: food['id'], amount: 250);
+      (s, b) = await a.get('/budgets/$id');
+      expect(b['percent'], 100.0);
+      expect(b['status'], 'red');
+      expect((await alertTypes()).where((t) => t == 'budget_100').length, 1);
     });
 
     test('mức đã dùng giảm dưới ngưỡng thì gỡ cảnh báo; chạm lại ngưỡng thì báo lại', () async {
@@ -808,6 +863,12 @@ void main() {
       expect([b['from'], b['to']], [prevSum['from'], prevSum['to']]);
       (s, b) = await a.get('/reports/trend?period=month&group=day');
       expect(s, 200);
+      expect((b['items'] as List).fold<int>(0, (x, e) => x + (e['expense'] as int)), 1510000);
+      // Theo tuần: mốc đầu ghi ngày đầu tháng (không phải thứ Hai của tuần trước đó), các mốc sau là thứ Hai.
+      (s, b) = await a.get('/reports/trend?period=year&group=week');
+      final weeks = (b['items'] as List).map((e) => DateTime.parse(e['date'] as String)).toList();
+      expect(weeks.first.month == 1 && weeks.first.day == 1, true, reason: '${weeks.first}');
+      expect(weeks.skip(1).every((d) => d.weekday == DateTime.monday), true);
       expect((b['items'] as List).fold<int>(0, (x, e) => x + (e['expense'] as int)), 1510000);
       (s, b) = await a.get('/reports/summary?period=month&offset=-1');
       expect(b['expense'], 0);

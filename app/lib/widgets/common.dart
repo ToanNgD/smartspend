@@ -1,4 +1,7 @@
+import 'dart:math' show min;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
@@ -141,6 +144,45 @@ class EmptyState extends StatelessWidget {
       );
 }
 
+/// Giới hạn độ dài ô nhập, đếm giống server (độ dài chuỗi: emoji tính 2, chữ có dấu tổ hợp tính theo số mã).
+/// maxLength có sẵn của Flutter đếm theo ký tự nhìn thấy nên có lúc bộ đếm chưa đầy mà server báo quá dài.
+/// Dùng cùng [lengthCounter] để bộ đếm hiện đúng con số server kiểm tra.
+class MaxLengthFormatter extends TextInputFormatter {
+  final int max;
+  const MaxLengthFormatter(this.max);
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.length <= max) return newValue;
+    // Giống cách Flutter giới hạn maxLength: nơi bộ gõ cần ghép chữ (iOS) thì chờ ghép xong mới cắt.
+    final waitComposing = LengthLimitingTextInputFormatter.getDefaultMaxLengthEnforcement() ==
+        MaxLengthEnforcement.truncateAfterCompositionEnds;
+    if (waitComposing && newValue.composing.isValid) return newValue;
+    // Đã đầy mà gõ thêm: giữ nguyên nội dung cũ.
+    if (oldValue.text.length == max && (waitComposing ? !oldValue.composing.isValid : oldValue.selection.isCollapsed)) {
+      return oldValue;
+    }
+    var end = max;
+    final last = newValue.text.codeUnitAt(end - 1);
+    if (last >= 0xD800 && last <= 0xDBFF) end--; // không cắt đôi một emoji
+    final text = newValue.text.substring(0, end);
+    return TextEditingValue(
+      text: text,
+      selection: newValue.selection.copyWith(
+        baseOffset: min(newValue.selection.baseOffset, text.length),
+        extentOffset: min(newValue.selection.extentOffset, text.length),
+      ),
+    );
+  }
+}
+
+/// Bộ đếm "đã nhập/tối đa" cho ô dùng [MaxLengthFormatter].
+InputCounterWidgetBuilder lengthCounter(TextEditingController controller, int max) =>
+    (context, {required currentLength, required isFocused, required maxLength}) => Text(
+          '${controller.text.length}/$max',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+        );
+
 void showError(BuildContext context, Object e) {
   final msg = e is ApiException ? e.message : 'Có lỗi xảy ra, vui lòng thử lại.';
   ScaffoldMessenger.of(context)
@@ -151,7 +193,10 @@ void showError(BuildContext context, Object e) {
 void showInfo(BuildContext context, String msg, {SnackBarAction? action, Duration? duration}) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(msg), action: action, duration: duration ?? const Duration(seconds: 4)));
+    // persist: false - từ Flutter 3.38, thông báo có nút (vd "Hoàn tác") mặc định không tự tắt;
+    // đặc tả yêu cầu chỉ hiện trong vài giây.
+    ..showSnackBar(SnackBar(
+        content: Text(msg), action: action, persist: false, duration: duration ?? const Duration(seconds: 4)));
 }
 
 Future<bool> confirm(BuildContext context, String title, String message,

@@ -163,7 +163,11 @@ class _CategoryFormState extends State<_CategoryForm> {
                   style: Theme.of(context).textTheme.titleLarge),
             ]),
             const SizedBox(height: 16),
-            TextField(controller: _name, maxLength: 30, decoration: const InputDecoration(labelText: 'Tên danh mục')),
+            TextField(
+                controller: _name,
+                inputFormatters: const [MaxLengthFormatter(30)],
+                buildCounter: lengthCounter(_name, 30),
+                decoration: const InputDecoration(labelText: 'Tên danh mục')),
             Text('Biểu tượng', style: TextStyle(color: context.muted)),
             const SizedBox(height: 8),
             Wrap(spacing: 6, runSpacing: 6, children: [

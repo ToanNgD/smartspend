@@ -1,6 +1,6 @@
 # SmartSpend API (v1)
 
-Địa chỉ gốc của mọi API: `/api/v1`. Dữ liệu gửi và nhận dạng JSON (UTF-8). Thời gian theo chuẩn ISO 8601 (UTC). Số tiền là số nguyên, đơn vị đồng.
+Địa chỉ gốc của mọi API: `/api/v1`. Dữ liệu gửi và nhận dạng JSON (UTF-8). Thời gian theo chuẩn ISO 8601 (UTC). Số tiền là số nguyên, đơn vị đồng, tối đa 10 tỷ đồng (vượt thì trả 400 kèm thông báo nêu rõ giới hạn).
 
 Trừ các API `auth/*` và `health`, mọi API đều cần header `Authorization: Bearer <access_token>`. Server lấy mã người dùng từ token, không bao giờ lấy từ dữ liệu gửi lên.
 
@@ -34,7 +34,7 @@ Khi có lỗi, server trả về dạng: `{"error": {"code": "...", "message": "
 | GET | /wallets | `{items, total_balance}` |
 | POST | /wallets | `{name, type: cash/bank/ewallet, initial_balance?}`. Số dư ban đầu được ghi thành một giao dịch "Số dư ban đầu". |
 | PATCH | /wallets/:id | `{name?, type?}`. Không sửa trực tiếp số dư. |
-| POST | /wallets/:id/adjust | `{balance}` tạo giao dịch điều chỉnh để số dư khớp với số dư thực tế. |
+| POST | /wallets/:id/adjust | `{balance}` tạo giao dịch điều chỉnh để số dư khớp với số dư thực tế. Mỗi lần điều chỉnh, phần chênh lệch tối đa 10 tỷ đồng. |
 | POST | /wallets/:id/archive, /unarchive | Lưu trữ hoặc dùng lại ví. Luôn giữ ít nhất 1 ví đang dùng. |
 | DELETE | /wallets/:id | Chỉ xóa được khi ví chưa có giao dịch nào và không phải ví cuối cùng. |
 
@@ -52,10 +52,10 @@ Khi có lỗi, server trả về dạng: `{"error": {"code": "...", "message": "
 | GET | /transactions | Tham số: `q` (tìm không dấu), `from`, `to`, `type`, `category_id`, `wallet_id`, `limit` (tối đa 50), `cursor`. Trả về `{items, next_cursor, totals}`. |
 | POST | /transactions | `{idempotency_key, type, amount, category_id, wallet_id, occurred_at?, note?, source?}`. Gửi trùng `idempotency_key` thì trả lại giao dịch cũ. Có thể trả kèm `warnings: ["over_balance"]`. |
 | GET | /transactions/:id | Chi tiết giao dịch, gồm danh sách ảnh. Giao dịch đã xóa mềm vẫn xem được theo mã, khi đó `deleted_at` khác null (danh sách GET /transactions không trả về giao dịch đã xóa). |
-| PATCH | /transactions/:id | Sửa giao dịch. Server hoàn tác ảnh hưởng cũ rồi áp dụng giá trị mới lên số dư ví. Giao dịch hệ thống (`source = system`: số dư ban đầu, điều chỉnh số dư) không sửa được, trả 400; muốn đổi số dư thì dùng `POST /wallets/:id/adjust`. Giao dịch đã xóa trả 404. Sửa số tiền, danh mục hoặc loại thì server xét lại cảnh báo ngân sách và chi bất thường của giao dịch này. |
-| DELETE | /transactions/:id | Xóa mềm và hoàn lại số dư; gỡ các cảnh báo không còn đúng (xem phần cảnh báo). |
+| PATCH | /transactions/:id | Sửa giao dịch. Server hoàn tác ảnh hưởng cũ rồi áp dụng giá trị mới lên số dư ví. Giao dịch hệ thống (`source = system`: số dư ban đầu, điều chỉnh số dư) không sửa được, trả 400 `system_transaction`; muốn đổi số dư thì dùng `POST /wallets/:id/adjust`. Giao dịch đã xóa trả 404. Sửa số tiền, danh mục hoặc loại thì server xét lại cảnh báo ngân sách và chi bất thường của giao dịch này. |
+| DELETE | /transactions/:id | Xóa mềm và hoàn lại số dư; gỡ các cảnh báo không còn đúng (xem phần cảnh báo). Giao dịch hệ thống (`source = system`) không xóa được, trả 400 `system_transaction`. |
 | POST | /transactions/:id/restore | Hoàn tác thao tác xóa; xét lại cảnh báo ngân sách và chi bất thường. |
-| POST | /transactions/bulk-delete | `{ids: [...]}` xóa nhiều giao dịch (tối đa 100). |
+| POST | /transactions/bulk-delete | `{ids: [...]}` xóa nhiều giao dịch (tối đa 100). Có mã không tồn tại hoặc giao dịch hệ thống thì không xóa giao dịch nào (404 hoặc 400 `system_transaction`). |
 
 ## Ảnh giao dịch (UC06.1)
 | Phương thức | Đường dẫn | Mô tả |
@@ -68,11 +68,11 @@ Khi có lỗi, server trả về dạng: `{"error": {"code": "...", "message": "
 ## Ngân sách và cảnh báo (UC09, UC10, UC13)
 | Phương thức | Đường dẫn | Mô tả |
 |---|---|---|
-| GET | /budgets, /budgets/:id | Mỗi ngân sách gồm: `spent`, `remaining`, `percent`, `days_left`, `daily_allowance`, `status` (green/yellow/red). |
+| GET | /budgets, /budgets/:id | Mỗi ngân sách gồm: `spent`, `remaining`, `percent`, `days_left`, `daily_allowance`, `status` (green/yellow/red). `percent` làm tròn xuống 1 chữ số (79,96% thành 79,9) nên chưa chi đủ 80%/100% hạn mức thì không hiện 80%/100%; ngưỡng cảnh báo và `status` so bằng số tiền thật. |
 | POST | /budgets | `{name, amount_limit, period: week/month, scope: all/categories, category_ids?}`. Không tạo được hai ngân sách trùng phạm vi và chu kỳ. |
 | PATCH | /budgets/:id | `{name?, amount_limit?, category_ids?}` sửa tên, hạn mức, danh mục. Không đổi được `period`, `scope` (trả 400; muốn đổi thì tạo ngân sách mới). Danh mục gửi lên giống danh mục hiện tại thì không kiểm tra trùng phạm vi. |
 | DELETE | /budgets/:id | Xóa ngân sách, không xóa giao dịch; các cảnh báo của ngân sách đó bị gỡ. |
-| GET | /alerts | `{items, unread_count}`. Mỗi ngưỡng 80%/100% chỉ báo một lần mỗi kỳ; nếu mức đã dùng giảm xuống dưới ngưỡng (xóa/sửa khoản chi, tăng hạn mức) thì cảnh báo đó bị gỡ và lần chạm sau được báo lại. Khoản chi bị cảnh báo bất thường bị xóa, hoặc được sửa hết bất thường, thì cảnh báo cũng bị gỡ (trừ cảnh báo đã bấm "Bình thường"). |
+| GET | /alerts | Tham số: `limit` (mặc định 30, tối đa 50), `before` (thời điểm ISO 8601: chỉ lấy cảnh báo gửi trước mốc này, dùng để tải thêm). Trả về `{items, unread_count}`, mới nhất trước. Mỗi ngưỡng 80%/100% chỉ báo một lần mỗi kỳ; nếu mức đã dùng giảm xuống dưới ngưỡng (xóa/sửa khoản chi, tăng hạn mức) thì cảnh báo đó bị gỡ và lần chạm sau được báo lại. Khoản chi bị cảnh báo bất thường bị xóa, hoặc được sửa hết bất thường, thì cảnh báo cũng bị gỡ (trừ cảnh báo đã bấm "Bình thường"). |
 | POST | /alerts/:id/read, /alerts/read-all | Đánh dấu đã đọc. |
 | POST | /alerts/:id/feedback | `{feedback: "normal"}`: lần sau không cảnh báo bất thường cho danh mục này nữa. |
 
@@ -91,4 +91,4 @@ Khi có lỗi, server trả về dạng: `{"error": {"code": "...", "message": "
 | GET | /reports/overview | Dữ liệu màn hình chính. |
 | GET | /reports/summary | Tham số: `period` (week/month/year/custom), `offset`, `from`, `to`, `wallet_id`. Trả về thu, chi, chênh lệch và so sánh với kỳ trước. Nếu kỳ chưa kết thúc thì so với cùng số ngày của kỳ trước. |
 | GET | /reports/categories | Thêm tham số `type`. Danh mục chiếm dưới 3% được gộp vào "Khác". `from`, `to` là ngày đầu và ngày cuối của kỳ (tính giống `/reports/summary`). |
-| GET | /reports/trend | Thêm tham số `group` (day/week/month). |
+| GET | /reports/trend | Thêm tham số `group` (day/week/month). Mỗi mốc ghi ngày bắt đầu; mốc đầu tiên không sớm hơn ngày đầu kỳ (vd xem tháng 11 theo tuần thì mốc đầu là 01/11). |
