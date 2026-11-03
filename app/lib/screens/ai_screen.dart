@@ -102,7 +102,10 @@ class _AiScreenState extends State<AiScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Trợ lý AI'), actions: topActions(context)),
       body: RefreshIndicator(
-        onRefresh: _load,
+        // Kéo để làm mới: tải lại thẻ gợi ý và cả phần "Dự báo cuối kỳ" (refreshSummary tăng refreshVersion).
+        onRefresh: () async {
+          await Future.wait([_load(), context.read<AppData>().refreshSummary()]);
+        },
         child: ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 100), children: [
           Card(
             child: ListTile(

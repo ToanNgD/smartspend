@@ -92,8 +92,9 @@ Nếu Gradle báo lỗi "different roots" (code ở ổ D, Flutter ở ổ C): `
 cd server
 dart test
 
-# App: kiểm thử đơn vị và giao diện (định dạng tiền, khóa PIN và mã hóa, xử lý ảnh, bàn phím PIN,
-# giới hạn độ dài ô nhập, thông báo "Hoàn tác" tự tắt, tải thêm ở màn Cảnh báo)
+# App: kiểm thử đơn vị và giao diện (định dạng tiền và số rút gọn, khóa PIN và mã hóa, xử lý ảnh, bàn phím PIN,
+# giới hạn độ dài ô nhập, thông báo "Hoàn tác" tự tắt, tải thêm ở màn Cảnh báo, cảnh báo chi vượt số dư
+# khi thêm/sửa, nội dung khi chạm cột biểu đồ, kéo để làm mới tải lại thẻ báo cáo)
 cd app
 flutter test
 ```

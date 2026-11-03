@@ -174,7 +174,7 @@ class _CategoryReportCardState extends State<CategoryReportCard> {
                 contentPadding: EdgeInsets.zero,
                 leading: CategoryIcon(icon: (c['icon'] as String?) ?? 'dots', color: (c['color'] as String?) ?? '#9E9E9E', size: 36),
                 title: Text(c['name'] as String),
-                subtitle: Text('${(c['percent'] as num).toStringAsFixed(1)}% · ${(c['count'] as num).toInt()} giao dịch',
+                subtitle: Text('${fmtPercent(c['percent'] as num)} · ${(c['count'] as num).toInt()} giao dịch',
                     style: TextStyle(color: sheet.muted, fontSize: 12)),
                 trailing: Money((c['amount'] as num).toInt(), style: const TextStyle(fontWeight: FontWeight.w600)),
                 onTap: () {
@@ -300,7 +300,7 @@ class _SummaryCompare extends StatelessWidget {
                   child: Money(v, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 16)),
                 ),
                 if (pct != null)
-                  Text('${pct >= 0 ? '▲' : '▼'} ${pct.abs().toStringAsFixed(1)}%',
+                  Text('${pct >= 0 ? '▲' : '▼'} ${fmtPercent(pct.abs())}',
                       style: TextStyle(
                           fontSize: 12,
                           color: (pct > 0) == lowerIsBetter ? context.expenseColor : context.incomeColor)),
@@ -412,7 +412,21 @@ class _TrendChartState extends State<_TrendChart> {
                   maxY: maxY == 0 ? 1 : maxY * 1.15,
                   gridData: const FlGridData(show: true, drawVerticalLine: false),
                   borderData: FlBorderData(show: false),
-                  barTouchData: BarTouchData(enabled: !hide),
+                  // Chạm một cột: hiện ngày và số thu, chi đã định dạng (mặc định thư viện hiện số thô "320000.0").
+                  // Đang ẩn số tiền thì tắt hẳn.
+                  barTouchData: BarTouchData(
+                    enabled: !hide,
+                    touchTooltipData: BarTouchTooltipData(
+                      fitInsideHorizontally: true,
+                      fitInsideVertically: true,
+                      maxContentWidth: 200,
+                      getTooltipColor: (_) => context.cs.inverseSurface,
+                      getTooltipItem: (g, gi, rod, ri) => BarTooltipItem(
+                        trendTooltipText(items[gi], group),
+                        TextStyle(color: context.cs.onInverseSurface, fontSize: 12, fontWeight: FontWeight.w600, height: 1.4),
+                      ),
+                    ),
+                  ),
                   titlesData: FlTitlesData(
                     topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                     rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -471,6 +485,20 @@ class _TrendChartState extends State<_TrendChart> {
       },
     );
   }
+}
+
+/// Nội dung khung hiện ra khi chạm một cột của biểu đồ xu hướng: mốc thời gian và số thu, chi dạng 1.250.000đ.
+/// [item] là một mốc của /reports/trend ({date, income, expense}), [group] là day/week/month.
+String trendTooltipText(Map<String, dynamic> item, String group) {
+  final d = DateTime.parse(item['date'] as String);
+  final dm = '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
+  final head = switch (group) {
+    'month' => 'Tháng ${d.month}/${d.year}',
+    // Mốc đầu có thể không phải thứ Hai (vd 01/11) vì số liệu chỉ tính từ đầu kỳ.
+    'week' => 'Tuần từ $dm',
+    _ => '$dm/${d.year}',
+  };
+  return '$head\nThu: ${vnd(item['income'] as num)}\nChi: ${vnd(item['expense'] as num)}';
 }
 
 class _Legend extends StatelessWidget {

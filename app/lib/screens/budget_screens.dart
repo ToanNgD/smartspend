@@ -222,7 +222,10 @@ class _BudgetTxListState extends State<_BudgetTxList> {
   @override
   Widget build(BuildContext context) {
     final v = context.select<AppData, int>((d) => d.txVersion);
-    final sig = '${widget.b.id}|${widget.b.raw['period_start']}|${widget.b.categoryIds.join(',')}|$v';
+    // refreshVersion: quay lại app thì thẻ ngân sách phía trên đã có số mới (vd khoản chi ghi từ máy khác),
+    // danh sách này tải lại theo cho khớp.
+    final rv = context.select<AppData, int>((d) => d.refreshVersion);
+    final sig = '${widget.b.id}|${widget.b.raw['period_start']}|${widget.b.categoryIds.join(',')}|$v|$rv';
     if (sig != _sig) {
       _sig = sig;
       WidgetsBinding.instance.addPostFrameCallback((_) => _load());

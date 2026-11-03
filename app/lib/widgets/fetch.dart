@@ -4,7 +4,8 @@ import 'package:provider/provider.dart';
 import '../core/api_client.dart';
 import '../state/app_data.dart';
 
-/// Tải dữ liệu GET một lần; chỉ tải lại khi tham số đổi hoặc giao dịch thay đổi (txVersion).
+/// Tải dữ liệu GET một lần; chỉ tải lại khi tham số đổi, giao dịch thay đổi (txVersion) hoặc số liệu tổng quan
+/// vừa được tải lại (refreshVersion: kéo để làm mới, quay lại app).
 class Fetch extends StatefulWidget {
   final String path;
   final Map<String, dynamic>? query;
@@ -23,7 +24,8 @@ class _FetchState extends State<Fetch> {
   @override
   Widget build(BuildContext context) {
     final v = context.select<AppData, int>((d) => d.txVersion);
-    final sig = '${widget.path}|${widget.query}|$v';
+    final rv = context.select<AppData, int>((d) => d.refreshVersion);
+    final sig = '${widget.path}|${widget.query}|$v|$rv';
     if (sig != _sig) {
       _sig = sig;
       _f = context.read<ApiClient>().get(widget.path, query: widget.query == null ? null : Map.of(widget.query!)).then((d) => _last = d);

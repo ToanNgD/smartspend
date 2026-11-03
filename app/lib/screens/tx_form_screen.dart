@@ -76,7 +76,7 @@ class _TxFormScreenState extends State<TxFormScreen> {
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
-          TxEditor(draft: _d, images: widget.edit == null ? _images : null),
+          TxEditor(draft: _d, images: widget.edit == null ? _images : null, original: widget.edit),
         ]),
         bottomNavigationBar: SafeArea(
           child: Padding(

@@ -37,7 +37,11 @@ class TxEditor extends StatefulWidget {
   final List<Uint8List>? images; // null = không cho thêm ảnh tại đây
   final bool compact;
   final VoidCallback? onChanged;
-  const TxEditor({super.key, required this.draft, this.images, this.compact = false, this.onChanged});
+  /// Giao dịch đang được sửa (null khi thêm mới). Số dư ví hiện tại đã tính cả giao dịch này,
+  /// nên khi báo "khoản chi lớn hơn số dư" phải bỏ phần của nó ra trước rồi mới so.
+  final Tx? original;
+  const TxEditor(
+      {super.key, required this.draft, this.images, this.compact = false, this.onChanged, this.original});
   @override
   State<TxEditor> createState() => _TxEditorState();
 }
@@ -107,7 +111,12 @@ class _TxEditorState extends State<TxEditor> {
     final wallets = [...data.activeWallets, if (origWallet != null && origWallet.isArchived) origWallet];
     if (d.walletId == null && wallets.isNotEmpty) d.walletId = wallets.first.id;
     final wallet = data.walletById(d.walletId);
-    final overBalance = d.type == 'expense' && wallet != null && (d.amount ?? 0) > 0 && d.amount! > wallet.balance;
+    // Số dư của ví khi chưa có giao dịch đang sửa: giao dịch gốc nằm ở ví này thì hoàn lại phần nó đã trừ/cộng
+    // (vd ví 1.000.000đ, chi 600.000đ còn 400.000đ: sửa khoản chi đó thì so với 1.000.000đ).
+    final orig = widget.original;
+    final available =
+        wallet == null ? 0 : wallet.balance - (orig != null && orig.walletId == wallet.id ? orig.signed : 0);
+    final overBalance = d.type == 'expense' && wallet != null && (d.amount ?? 0) > 0 && d.amount! > available;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       SegmentedButton<String>(
         segments: const [

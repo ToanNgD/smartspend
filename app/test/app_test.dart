@@ -18,6 +18,7 @@ import 'package:smartspend/screens/ai_screen.dart';
 import 'package:smartspend/screens/alerts_screen.dart';
 import 'package:smartspend/screens/auth_screens.dart';
 import 'package:smartspend/screens/lock_screens.dart';
+import 'package:smartspend/screens/report_screen.dart';
 import 'package:smartspend/state/app_data.dart';
 import 'package:smartspend/widgets/common.dart';
 import 'package:smartspend/widgets/tx_editor.dart';
@@ -48,6 +49,31 @@ class _FakeAlertsApi extends ApiClient {
   Future<dynamic> post(String path, [Object? body]) async => null;
 }
 
+/// API giả trả dữ liệu tối thiểu cho AppData và thẻ báo cáo theo danh mục; đếm số lần gọi từng đường dẫn.
+class _FakeDataApi extends ApiClient {
+  _FakeDataApi() : super(TokenStore());
+  final calls = <String>[];
+
+  @override
+  Future<dynamic> get(String path, {Map<String, dynamic>? query}) async {
+    calls.add(path);
+    return switch (path) {
+      '/me' => {'id': 'u', 'full_name': 'Nguyễn An', 'email': 'an@vidu.vn', 'features': <String, dynamic>{}},
+      '/wallets' => {'items': [], 'total_balance': 0},
+      '/categories' => {'items': []},
+      '/reports/overview' => {
+          'month': {'income': 0, 'expense': 0, 'net': 0, 'change_percent': <String, dynamic>{}},
+          'recent_transactions': [],
+          'unread_alerts': 0,
+        },
+      '/budgets' => {'items': []},
+      '/settings' => {'budget_alerts_enabled': true, 'smart_alerts_enabled': true},
+      '/reports/categories' => {'from': '2026-11-01', 'to': '2026-11-03', 'type': 'expense', 'total': 0, 'items': [], 'other': null},
+      _ => <String, dynamic>{},
+    };
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() => initializeDateFormatting('vi'));
@@ -68,6 +94,75 @@ void main() {
       final v = f.formatEditUpdate(TextEditingValue.empty, const TextEditingValue(text: '1500000'));
       expect(v.text, '1.500.000');
     });
+
+    test('số tiền rút gọn chọn đơn vị sau khi làm tròn; phần trăm dùng dấu phẩy', () {
+      expect(vndShort(999400), '999k');
+      expect(vndShort(999999), '1tr', reason: 'không hiện "1000k"');
+      expect(vndShort(2000000), '2tr');
+      expect(vndShort(2040000), '2tr', reason: 'không hiện "2,0tr"');
+      expect(vndShort(999990000), '1 tỷ', reason: 'không hiện "1000,0tr"');
+      expect(vndShort(1500000000), '1,5 tỷ');
+      expect(vndShort(-50000), '-50k');
+      expect(vndShort(0), '0');
+      expect(fmtPercent(12.5), '12,5%');
+      expect(fmtPercent(2.44), '2,4%');
+    });
+
+    test('chạm cột biểu đồ xu hướng: hiện mốc thời gian và số tiền đã định dạng', () {
+      final item = {'date': '2026-11-03', 'income': 150000, 'expense': 320000};
+      expect(trendTooltipText(item, 'day'), '03/11/2026\nThu: 150.000đ\nChi: 320.000đ');
+      expect(trendTooltipText({...item, 'date': '2026-11-01'}, 'week'), startsWith('Tuần từ 01/11\n'));
+      expect(trendTooltipText(item, 'month'), startsWith('Tháng 11/2026\n'));
+    });
+  });
+
+  testWidgets('cảnh báo chi vượt số dư: thêm mới so với số dư ví, sửa thì không tính chính khoản đang sửa', (tester) async {
+    final data = AppData(ApiClient(TokenStore()), SecureCache(Vault()));
+    // Khoản chi 600.000đ đã lưu: ví từ 1.000.000đ còn 400.000đ.
+    data.wallets = [
+      Wallet.fromJson({'id': 'w1', 'name': 'Tiền mặt', 'type': 'cash', 'balance': 400000, 'is_archived': false, 'tx_count': 2}),
+    ];
+    data.categories = [
+      TxCategory.fromJson(
+          {'id': 'c1', 'name': 'Ăn uống', 'type': 'expense', 'icon': 'food', 'color': '#D9822B', 'is_default': true, 'is_hidden': false}),
+    ];
+    final orig = Tx.fromJson({
+      'id': 't1', 'type': 'expense', 'amount': 600000, 'occurred_at': '2026-11-03T02:00:00Z',
+      'wallet_id': 'w1', 'wallet_name': 'Tiền mặt', 'category_id': 'c1', 'category_name': 'Ăn uống',
+    });
+    TxDraft draft(int amount) =>
+        TxDraft(type: 'expense', amount: amount, categoryId: 'c1', walletId: 'w1', occurredAt: DateTime(2026, 11, 3, 9));
+    Future<void> show(TxEditor e) => tester.pumpWidget(ChangeNotifierProvider.value(
+        value: data, child: MaterialApp(home: Scaffold(body: SingleChildScrollView(child: e)))));
+    final warn = find.textContaining('lớn hơn số dư ví');
+
+    await show(TxEditor(key: UniqueKey(), draft: draft(600000), original: orig));
+    expect(warn, findsNothing, reason: 'mở sửa, chưa đổi gì: không báo vượt số dư');
+    await show(TxEditor(key: UniqueKey(), draft: draft(1200000), original: orig));
+    expect(warn, findsOneWidget, reason: 'sửa thành 1.200.000đ, nhiều hơn 1.000.000đ thì báo');
+    await show(TxEditor(key: UniqueKey(), draft: draft(600000)));
+    expect(warn, findsOneWidget, reason: 'thêm mới 600.000đ khi ví còn 400.000đ thì báo');
+  });
+
+  testWidgets('kéo để làm mới, quay lại app thì thẻ báo cáo tải lại; đổi giao dịch chỉ tải lại một lần', (tester) async {
+    final api = _FakeDataApi();
+    final data = AppData(api, SecureCache(Vault()));
+    await tester.pumpWidget(MultiProvider(
+      providers: [Provider<ApiClient>.value(value: api), ChangeNotifierProvider.value(value: data)],
+      child: const MaterialApp(home: Scaffold(body: SingleChildScrollView(child: CategoryReportCard(compact: true)))),
+    ));
+    await tester.pumpAndSettle();
+    int n() => api.calls.where((p) => p == '/reports/categories').length;
+    expect(n(), 1);
+    await data.loadAll(); // kéo để làm mới ở Tổng quan
+    await tester.pumpAndSettle();
+    expect(n(), 2, reason: 'kéo để làm mới');
+    await data.refreshSummary(); // quay lại app từ nền
+    await tester.pumpAndSettle();
+    expect(n(), 3, reason: 'quay lại app');
+    await data.afterTxChange();
+    await tester.pumpAndSettle();
+    expect(n(), 4, reason: 'đổi giao dịch: tải lại đúng một lần');
   });
 
   test('giới hạn độ dài ô nhập đếm giống server (emoji tính 2, không cắt đôi emoji)', () {

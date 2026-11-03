@@ -26,6 +26,11 @@ class AppData extends ChangeNotifier {
   bool hideAmounts = false;
   /// Tăng mỗi khi giao dịch thay đổi để các màn hình danh sách tự tải lại.
   int txVersion = 0;
+  /// Tăng mỗi lần tải lại số liệu tổng quan thành công (kéo để làm mới, quay lại app, sau khi đổi giao dịch).
+  /// Các khối báo cáo, dự báo và danh sách khoản chi của ngân sách tải lại theo số này để khớp với số liệu vừa tải
+  /// (dữ liệu có thể đã đổi từ máy khác, hoặc đã sang tuần/tháng mới). Danh sách giao dịch không theo số này,
+  /// để quay lại app không làm mất chỗ đang xem.
+  int refreshVersion = 0;
   /// Lý do lần tải ảnh gần nhất bị lỗi (hiển thị cho người dùng thay vì báo chung chung).
   String? lastUploadError;
 
@@ -54,6 +59,7 @@ class AppData extends ChangeNotifier {
       ]);
       _apply(r[0], r[1], r[2], r[3], r[4], r[5]);
       offline = false;
+      refreshVersion++;
       await cache.putJson('app_data', r);
     } on ApiException catch (e) {
       if (e.code == 'offline') {
@@ -88,8 +94,8 @@ class AppData extends ChangeNotifier {
 
   DateTime? _lastSummary;
 
-  /// Làm mới nhẹ (số dư, tổng quan, ngân sách, số cảnh báo) mà không bắt các danh sách tải lại.
-  /// Dùng khi quay lại app từ nền.
+  /// Làm mới nhẹ (số dư, tổng quan, ngân sách, số cảnh báo) mà không bắt danh sách giao dịch tải lại;
+  /// các khối báo cáo, dự báo tải lại theo [refreshVersion]. Dùng khi quay lại app từ nền.
   Future<void> refreshSummary({Duration? ifOlderThan}) async {
     final last = _lastSummary;
     if (ifOlderThan != null && last != null && DateTime.now().difference(last) < ifOlderThan) return;
@@ -101,6 +107,7 @@ class AppData extends ChangeNotifier {
       overview = Map<String, dynamic>.from(r[1]);
       unreadAlerts = (r[1]['unread_alerts'] as num?)?.toInt() ?? 0;
       budgets = (r[2]['items'] as List).map((e) => Budget.fromJson(e)).toList();
+      refreshVersion++;
     } catch (_) {}
     notifyListeners();
   }

@@ -12,21 +12,32 @@ String vnd(num v, {bool sign = false}) {
   return '$prefix$sđ';
 }
 
-/// Rút gọn cho biểu đồ: 1.250.000 -> "1,3tr", 50.000 -> "50k"
+/// Rút gọn cho biểu đồ: 1.250.000 -> "1,3tr", 50.000 -> "50k", 2.040.000 -> "2tr".
+/// Chọn đơn vị theo giá trị SAU khi làm tròn, để 999.999 thành "1tr" (không phải "1000k")
+/// và 999.990.000 thành "1 tỷ" (không phải "1000,0tr").
 String vndShort(num v) {
   final a = v.abs();
-  String s;
-  if (a >= 1000000000) {
-    s = '${(a / 1000000000).toStringAsFixed(a % 1000000000 == 0 ? 0 : 1)} tỷ';
-  } else if (a >= 1000000) {
-    s = '${(a / 1000000).toStringAsFixed(a % 1000000 == 0 ? 0 : 1)}tr';
-  } else if (a >= 1000) {
-    s = '${(a / 1000).round()}k';
-  } else {
-    s = a.toStringAsFixed(0);
+  // Một chữ số thập phân, bỏ ",0" thừa: 2.0 -> "2", 1.25 -> "1,3".
+  String one(double x) {
+    final t = x.toStringAsFixed(1);
+    return (t.endsWith('.0') ? t.substring(0, t.length - 2) : t).replaceAll('.', ',');
   }
-  return (v < 0 ? '-' : '') + s.replaceAll('.', ',');
+
+  final String s;
+  if (a < 999.5) {
+    s = a.toStringAsFixed(0);
+  } else if (a < 999500) {
+    s = '${(a / 1000).round()}k';
+  } else if (a < 999950000) {
+    s = '${one(a / 1000000)}tr';
+  } else {
+    s = '${one(a / 1000000000)} tỷ';
+  }
+  return (v < 0 ? '-' : '') + s;
 }
+
+/// Phần trăm theo cách viết tiếng Việt: 12.5 -> "12,5%" (dấu phẩy thập phân, giống "1,3tr").
+String fmtPercent(num v, {int digits = 1}) => '${v.toStringAsFixed(digits).replaceAll('.', ',')}%';
 
 const hiddenMoney = '••••••';
 
